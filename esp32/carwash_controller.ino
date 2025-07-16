@@ -1,7 +1,6 @@
 #include <WiFi.h>
 #include <WebServer.h>
 #include <ArduinoJson.h>
-#include <HTTPClient.h>
 
 // WiFi Configuration
 const char* ssid = "YOUR_WIFI_SSID";
@@ -9,14 +8,14 @@ const char* password = "YOUR_WIFI_PASSWORD";
 
 // Relay Pin Configuration
 const int RELAY_PINS[] = {1, 2, 3, 4, 5}; // GPIO pins for relays 1-5
-const int NUM_RELAYS = 5;
+const int NUM_RELAYS = 6; // Including the blank relay
 const int RELAY_DELAY = 500; // 500ms delay for relays 1-4
 
 // Web Server
 WebServer server(80);
 
 // Relay States
-bool relayStates[NUM_RELAYS] = {false, false, false, false, false};
+bool relayStates[NUM_RELAYS] = {false, false, false, false, false, false};
 
 void setup() {
   Serial.begin(115200);
@@ -56,11 +55,11 @@ void loop() {
 void setupServerRoutes() {
   // Health check endpoint
   server.on("/ping", HTTP_GET, []() {
-    server.send(200, "application/json", "{\"status\":\"ok\",\"message\":\"ESP32 Car Wash Controller\"}");
+    server.send(200, "text/plain", "ESP32 Car Wash Controller - OK");
   });
   
-  // Trigger relay endpoint
-  server.on("/trigger", HTTP_POST, handleTriggerRelay);
+  // Momentary relay trigger endpoint
+  server.on("/momentary/:relayId", HTTP_GET, handleMomentaryRelay);
   
   // Get relay status
   server.on("/status", HTTP_GET, handleGetStatus);
@@ -74,42 +73,23 @@ void setupServerRoutes() {
   });
 }
 
-void handleTriggerRelay() {
-  if (server.hasArg("plain")) {
-    String body = server.getArg("plain");
-    DynamicJsonDocument doc(200);
-    DeserializationError error = deserializeJson(doc, body);
-    
-    if (error) {
-      server.send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
-      return;
-    }
-    
-    int relayId = doc["relay"];
-    
-    if (relayId < 1 || relayId > NUM_RELAYS) {
-      server.send(400, "application/json", "{\"error\":\"Invalid relay ID\"}");
-      return;
-    }
-    
-    // Convert to 0-based index
-    int relayIndex = relayId - 1;
-    
-    // Trigger the relay
-    triggerRelay(relayIndex);
-    
-    // Send response
-    DynamicJsonDocument response(200);
-    response["success"] = true;
-    response["relay"] = relayId;
-    response["message"] = "Relay triggered successfully";
-    
-    String responseString;
-    serializeJson(response, responseString);
-    server.send(200, "application/json", responseString);
-  } else {
-    server.send(400, "application/json", "{\"error\":\"No data received\"}");
+void handleMomentaryRelay() {
+  String relayIdStr = server.pathArg(0);
+  int relayId = relayIdStr.toInt();
+  
+  if (relayId < 1 || relayId > NUM_RELAYS) {
+    server.send(400, "text/plain", "Invalid relay ID");
+    return;
   }
+  
+  // Convert to 0-based index
+  int relayIndex = relayId - 1;
+  
+  // Trigger the relay
+  triggerRelay(relayIndex);
+  
+  // Send simple response
+  server.send(200, "text/plain", "Relay triggered");
 }
 
 void handleGetStatus() {
@@ -139,13 +119,7 @@ void handleReset() {
     relayStates[i] = false;
   }
   
-  DynamicJsonDocument doc(200);
-  doc["success"] = true;
-  doc["message"] = "All relays reset";
-  
-  String responseString;
-  serializeJson(doc, responseString);
-  server.send(200, "application/json", responseString);
+  server.send(200, "text/plain", "All relays reset");
 }
 
 void triggerRelay(int relayIndex) {
@@ -171,7 +145,7 @@ void triggerRelay(int relayIndex) {
     Serial.printf("Relay %d triggered (ON for %dms)\n", relayIndex + 1, RELAY_DELAY);
   }
   // For relay 5 (index 4), use reset logic
-  else {
+  else if (relayIndex == 4) {
     // Turn ON
     digitalWrite(pin, HIGH);
     relayStates[relayIndex] = true;
@@ -184,6 +158,10 @@ void triggerRelay(int relayIndex) {
     relayStates[relayIndex] = false;
     
     Serial.printf("Relay %d (Reset) triggered\n", relayIndex + 1);
+  }
+  // For relay 6 (index 5), blank relay - no action
+  else {
+    Serial.printf("Relay %d (Blank) - no action\n", relayIndex + 1);
   }
 }
 

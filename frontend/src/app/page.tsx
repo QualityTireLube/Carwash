@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react'
 import { Users, Settings, Zap, Activity } from 'lucide-react'
 import Link from 'next/link'
+import WashButtons from '@/components/WashButtons'
+import { getCustomers, getWashTypes, testConnection } from '@/utils/api'
 
 interface DashboardStats {
   totalCustomers: number
@@ -24,20 +26,16 @@ export default function Dashboard() {
     const fetchStats = async () => {
       try {
         const [customersRes, washTypesRes, statusRes] = await Promise.all([
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/customers`),
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/wash-types`),
-          fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trigger/test`)
+          getCustomers(),
+          getWashTypes(),
+          testConnection()
         ])
 
-        const customers = await customersRes.json()
-        const washTypes = await washTypesRes.json()
-        const status = await statusRes.json()
-
         setStats({
-          totalCustomers: customers.customers?.length || 0,
-          activeMemberships: customers.customers?.filter((c: any) => c.membership_status === 'active').length || 0,
-          totalWashTypes: washTypes.washTypes?.length || 0,
-          systemStatus: status.success ? 'online' : 'offline'
+          totalCustomers: customersRes.customers?.length || 0,
+          activeMemberships: customersRes.customers?.filter((c: any) => c.membership_status === 'active').length || 0,
+          totalWashTypes: washTypesRes.washTypes?.length || 0,
+          systemStatus: statusRes.success ? 'online' : 'offline'
         })
       } catch (error) {
         console.error('Error fetching stats:', error)
@@ -122,7 +120,7 @@ export default function Dashboard() {
         </div>
 
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
           {/* Quick Actions */}
           <div className="card p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Actions</h2>
@@ -176,6 +174,12 @@ export default function Dashboard() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Quick Wash Controls */}
+        <div className="card p-6">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">Quick Wash Controls</h2>
+          <WashButtons />
         </div>
       </main>
     </div>

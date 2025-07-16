@@ -52,8 +52,7 @@ DATABASE_URL=postgresql://username:password@localhost:5432/carwash_db
 JWT_SECRET=your-super-secret-jwt-key-here
 STRIPE_SECRET_KEY=sk_test_your_stripe_secret_key
 STRIPE_WEBHOOK_SECRET=whsec_your_webhook_secret
-ESP32_BASE_URL=http://192.168.1.100
-ESP32_TIMEOUT=5000
+ESP32_HOST=http://192.168.1.50
 PORT=3001
 NODE_ENV=development
 CORS_ORIGIN=http://localhost:3000
@@ -114,6 +113,7 @@ The frontend will be available at `http://localhost:3000`
 | GPIO 3     | Relay 3      | Deluxe Wash |
 | GPIO 4     | Relay 4      | Ultimate Wash |
 | GPIO 5     | Relay 5      | Reset |
+| GPIO 6     | Relay 6      | Blank (no action) |
 
 ### Software Setup
 
@@ -147,44 +147,46 @@ const char* password = "YOUR_WIFI_PASSWORD";
 
 8. Update backend `.env` with ESP32 IP:
 ```env
-ESP32_BASE_URL=http://YOUR_ESP32_IP
+ESP32_HOST=http://YOUR_ESP32_IP
 ```
 
-## 5. Stripe Configuration
+## 5. API Endpoints
 
-1. Create a Stripe account at [stripe.com](https://stripe.com)
+### Backend API Structure
 
-2. Get your API keys from Dashboard > Developers > API keys
+The backend now uses a simpler API structure:
 
-3. Create a webhook endpoint:
-   - Dashboard > Developers > Webhooks
-   - Add endpoint: `https://your-backend-url.com/api/stripe/webhook`
-   - Select events:
-     - `customer.subscription.created`
-     - `customer.subscription.updated`
-     - `customer.subscription.deleted`
-     - `invoice.payment_succeeded`
-     - `invoice.payment_failed`
+- `POST /api/trigger/:relayId` - Trigger relay (1-6)
+- `GET /api/trigger/status` - Get system status
+- `GET /api/trigger/test` - Test ESP32 connection
 
-4. Copy webhook secret to backend `.env`
+### ESP32 Endpoints
 
-5. Create products and prices in Stripe Dashboard for your wash types
+- `GET /momentary/:relayId` - Trigger momentary relay
+- `GET /status` - Get relay status
+- `GET /ping` - Health check
+- `POST /reset` - Reset all relays
 
 ## 6. Testing the System
 
 1. **Test ESP32 Connection**:
-   - Visit `http://localhost:3000/control`
+   - Visit `http://localhost:3000`
    - Check if ESP32 shows as "Connected"
 
 2. **Test Relay Control**:
-   - Click "Trigger" buttons for each wash type
+   - Use the Quick Wash Controls on the dashboard
+   - Click buttons for each wash type
    - Verify relays activate with 500ms delay
 
-3. **Test Customer Management**:
+3. **Test Manual Control**:
+   - Visit `http://localhost:3000/control`
+   - Test individual relay controls
+
+4. **Test Customer Management**:
    - Visit `http://localhost:3000/customers`
    - Add a test customer
 
-4. **Test Wash Types**:
+5. **Test Wash Types**:
    - Visit `http://localhost:3000/wash-types`
    - Verify default wash types are loaded
 
