@@ -1,0 +1,24 @@
+services:
+  - type: web
+    name: carwash-backend
+    env: node
+    plan: starter
+    buildCommand: cd backend && npm install && npm run build
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_URL
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: JWT_SECRET
+        sync: false
+      - key: ESP32_BASE_URL
+        sync: false
+      - key: ESP32_TIMEOUT
+        value: "5000"
+      - key: CORS_ORIGIN
+        sync: false 
