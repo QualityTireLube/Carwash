@@ -124,4 +124,4 @@ router.delete('/:id', async (req: Request, res: Response) => {
   }
 });
 
-export default router; // Fixed TypeScript compilation errors
+export default router;
