@@ -35,7 +35,7 @@ router.post('/:relayId', async (req: Request, res: Response) => {
 
     if (response.status === 200) {
       logger.info(`Relay ${relayNumber} triggered successfully`);
-      res.json({ 
+      return res.json({ 
         success: true, 
         message: `Relay ${relayNumber} triggered`,
         relayId: relayNumber,
@@ -61,9 +61,9 @@ router.post('/:relayId', async (req: Request, res: Response) => {
       }
     }
 
-    res.status(500).json({ 
+    return res.status(500).json({ 
       error: 'Failed to trigger relay',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
     });
   }
 });
@@ -76,7 +76,7 @@ router.get('/status', async (req: Request, res: Response) => {
       { timeout: ESP32_TIMEOUT }
     );
 
-    res.json({
+    return res.json({
       success: true,
       status: response.data,
       timestamp: new Date().toISOString()
@@ -93,9 +93,9 @@ router.get('/status', async (req: Request, res: Response) => {
       }
     }
 
-    res.status(500).json({ 
+    return res.status(500).json({ 
       error: 'Failed to fetch relay status',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
     });
   }
 });
@@ -108,7 +108,7 @@ router.get('/test', async (req: Request, res: Response) => {
       { timeout: 3000 }
     );
 
-    res.json({
+    return res.json({
       success: true,
       message: 'ESP32 connection successful',
       response: response.data
@@ -117,10 +117,10 @@ router.get('/test', async (req: Request, res: Response) => {
   } catch (error) {
     logger.error('ESP32 connection test failed:', error);
     
-    res.status(503).json({
+    return res.status(503).json({
       success: false,
       error: 'ESP32 not reachable',
-      details: process.env.NODE_ENV === 'development' ? error.message : undefined
+      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
     });
   }
 });

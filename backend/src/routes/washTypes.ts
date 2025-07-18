@@ -21,10 +21,10 @@ router.get('/', async (req: Request, res: Response) => {
     const result = await db.query(
       'SELECT * FROM wash_types ORDER BY name ASC'
     );
-    res.json({ washTypes: result.rows });
+    return res.json({ washTypes: result.rows });
   } catch (error) {
     logger.error('Error fetching wash types:', error);
-    res.status(500).json({ error: 'Failed to fetch wash types' });
+    return res.status(500).json({ error: 'Failed to fetch wash types' });
   }
 });
 
@@ -41,10 +41,10 @@ router.get('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Wash type not found' });
     }
     
-    res.json({ washType: result.rows[0] });
+    return res.json({ washType: result.rows[0] });
   } catch (error) {
     logger.error('Error fetching wash type:', error);
-    res.status(500).json({ error: 'Failed to fetch wash type' });
+    return res.status(500).json({ error: 'Failed to fetch wash type' });
   }
 });
 
@@ -66,10 +66,10 @@ router.post('/', validateWashType, async (req: Request, res: Response) => {
     );
 
     logger.info('Wash type created:', { id: result.rows[0].id, name });
-    res.status(201).json({ washType: result.rows[0] });
+    return res.status(201).json({ washType: result.rows[0] });
   } catch (error) {
     logger.error('Error creating wash type:', error);
-    res.status(500).json({ error: 'Failed to create wash type' });
+    return res.status(500).json({ error: 'Failed to create wash type' });
   }
 });
 
@@ -97,10 +97,10 @@ router.put('/:id', validateWashType, async (req: Request, res: Response) => {
     }
 
     logger.info('Wash type updated:', { id, name });
-    res.json({ washType: result.rows[0] });
+    return res.json({ washType: result.rows[0] });
   } catch (error) {
     logger.error('Error updating wash type:', error);
-    res.status(500).json({ error: 'Failed to update wash type' });
+    return res.status(500).json({ error: 'Failed to update wash type' });
   }
 });
 
@@ -118,10 +118,10 @@ router.delete('/:id', async (req: Request, res: Response) => {
     }
 
     logger.info('Wash type deleted:', { id });
-    res.json({ message: 'Wash type deleted successfully' });
+    return res.json({ message: 'Wash type deleted successfully' });
   } catch (error) {
     logger.error('Error deleting wash type:', error);
-    res.status(500).json({ error: 'Failed to delete wash type' });
+    return res.status(500).json({ error: 'Failed to delete wash type' });
   }
 });
 

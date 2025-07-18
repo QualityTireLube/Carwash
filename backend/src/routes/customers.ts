@@ -2,7 +2,6 @@ import { Router, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
 import { db } from '../config/database';
 import { logger } from '../utils/logger';
-import { createError } from '../middleware/errorHandler';
 
 const router = Router();
 
@@ -21,10 +20,10 @@ router.get('/', async (req: Request, res: Response) => {
     const result = await db.query(
       'SELECT * FROM customers ORDER BY created_at DESC'
     );
-    res.json({ customers: result.rows });
+    return res.json({ customers: result.rows });
   } catch (error) {
     logger.error('Error fetching customers:', error);
-    res.status(500).json({ error: 'Failed to fetch customers' });
+    return res.status(500).json({ error: 'Failed to fetch customers' });
   }
 });
 
@@ -41,10 +40,10 @@ router.get('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Customer not found' });
     }
     
-    res.json({ customer: result.rows[0] });
+    return res.json({ customer: result.rows[0] });
   } catch (error) {
     logger.error('Error fetching customer:', error);
-    res.status(500).json({ error: 'Failed to fetch customer' });
+    return res.status(500).json({ error: 'Failed to fetch customer' });
   }
 });
 
@@ -66,10 +65,10 @@ router.post('/', validateCustomer, async (req: Request, res: Response) => {
     );
 
     logger.info('Customer created:', { id: result.rows[0].id, email });
-    res.status(201).json({ customer: result.rows[0] });
+    return res.status(201).json({ customer: result.rows[0] });
   } catch (error) {
     logger.error('Error creating customer:', error);
-    res.status(500).json({ error: 'Failed to create customer' });
+    return res.status(500).json({ error: 'Failed to create customer' });
   }
 });
 
@@ -97,10 +96,10 @@ router.put('/:id', validateCustomer, async (req: Request, res: Response) => {
     }
 
     logger.info('Customer updated:', { id, email });
-    res.json({ customer: result.rows[0] });
+    return res.json({ customer: result.rows[0] });
   } catch (error) {
     logger.error('Error updating customer:', error);
-    res.status(500).json({ error: 'Failed to update customer' });
+    return res.status(500).json({ error: 'Failed to update customer' });
   }
 });
 
@@ -118,10 +117,10 @@ router.delete('/:id', async (req: Request, res: Response) => {
     }
 
     logger.info('Customer deleted:', { id });
-    res.json({ message: 'Customer deleted successfully' });
+    return res.json({ message: 'Customer deleted successfully' });
   } catch (error) {
     logger.error('Error deleting customer:', error);
-    res.status(500).json({ error: 'Failed to delete customer' });
+    return res.status(500).json({ error: 'Failed to delete customer' });
   }
 });
 

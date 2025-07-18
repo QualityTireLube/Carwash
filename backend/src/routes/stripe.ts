@@ -53,14 +53,14 @@ router.post('/create-subscription', async (req: Request, res: Response) => {
       subscriptionId: subscription.id 
     });
 
-    res.json({
+    return res.json({
       subscriptionId: subscription.id,
       clientSecret: (subscription.latest_invoice as any).payment_intent.client_secret,
     });
 
   } catch (error) {
     logger.error('Error creating subscription:', error);
-    res.status(500).json({ error: 'Failed to create subscription' });
+    return res.status(500).json({ error: 'Failed to create subscription' });
   }
 });
 
@@ -88,14 +88,14 @@ router.post('/cancel-subscription', async (req: Request, res: Response) => {
 
     logger.info('Subscription cancelled:', { subscriptionId, customerId });
 
-    res.json({ 
+    return res.json({ 
       message: 'Subscription cancelled successfully',
       subscriptionId 
     });
 
   } catch (error) {
     logger.error('Error cancelling subscription:', error);
-    res.status(500).json({ error: 'Failed to cancel subscription' });
+    return res.status(500).json({ error: 'Failed to cancel subscription' });
   }
 });
 
@@ -139,10 +139,10 @@ router.post('/webhook', async (req: Request, res: Response) => {
         logger.info(`Unhandled event type: ${event.type}`);
     }
 
-    res.json({ received: true });
+    return res.json({ received: true });
   } catch (error) {
     logger.error('Error processing webhook:', error);
-    res.status(500).json({ error: 'Webhook processing failed' });
+    return res.status(500).json({ error: 'Webhook processing failed' });
   }
 });
 
