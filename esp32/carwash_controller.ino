@@ -58,8 +58,11 @@ void setupServerRoutes() {
     server.send(200, "text/plain", "ESP32 Car Wash Controller - OK");
   });
   
-  // Momentary relay trigger endpoint
+  // Momentary relay trigger endpoint (legacy)
   server.on("/momentary/:relayId", HTTP_GET, handleMomentaryRelay);
+  
+  // New trigger endpoint for backend integration
+  server.on("/trigger", HTTP_POST, handleTrigger);
   
   // Get relay status
   server.on("/status", HTTP_GET, handleGetStatus);
@@ -90,6 +93,47 @@ void handleMomentaryRelay() {
   
   // Send simple response
   server.send(200, "text/plain", "Relay triggered");
+}
+
+void handleTrigger() {
+  // Parse JSON payload
+  String payload = server.arg("plain");
+  DynamicJsonDocument doc(200);
+  DeserializationError error = deserializeJson(doc, payload);
+  
+  if (error) {
+    server.send(400, "application/json", "{\"error\":\"Invalid JSON\"}");
+    return;
+  }
+  
+  if (!doc.containsKey("relay")) {
+    server.send(400, "application/json", "{\"error\":\"Missing relay parameter\"}");
+    return;
+  }
+  
+  int relayId = doc["relay"];
+  
+  if (relayId < 1 || relayId > NUM_RELAYS) {
+    server.send(400, "application/json", "{\"error\":\"Invalid relay ID\"}");
+    return;
+  }
+  
+  // Convert to 0-based index
+  int relayIndex = relayId - 1;
+  
+  // Trigger the relay
+  triggerRelay(relayIndex);
+  
+  // Send JSON response
+  DynamicJsonDocument responseDoc(200);
+  responseDoc["success"] = true;
+  responseDoc["message"] = "Relay triggered";
+  responseDoc["relay"] = relayId;
+  responseDoc["timestamp"] = millis();
+  
+  String responseString;
+  serializeJson(responseDoc, responseString);
+  server.send(200, "application/json", responseString);
 }
 
 void handleGetStatus() {

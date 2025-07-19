@@ -13,6 +13,7 @@ import { db } from './config/database'; // Added import for db
 // Routes
 import customerRoutes from './routes/customers';
 import washTypeRoutes from './routes/washTypes';
+import washSessionRoutes from './routes/washSessions';
 import relayRoutes from './routes/relay';
 import stripeRoutes from './routes/stripe';
 import testRoutes from './routes/test';
@@ -98,6 +99,7 @@ app.get('/health', async (req, res) => {
 // API routes
 app.use('/api/customers', customerRoutes);
 app.use('/api/wash-types', washTypeRoutes);
+app.use('/api/wash-sessions', washSessionRoutes);
 app.use('/api/trigger', relayRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/test', testRoutes);

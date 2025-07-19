@@ -85,6 +85,13 @@ export default function Dashboard() {
       href: '/wash-types'
     },
     {
+      title: 'Wash Sessions',
+      value: 'Manage',
+      icon: Activity,
+      color: 'bg-indigo-500',
+      href: '/wash-sessions'
+    },
+    {
       title: 'System Status',
       value: stats.systemStatus === 'loading' ? 'Loading...' : (stats.systemStatus === 'online' ? 'Online' : 'Offline'),
       icon: Zap,
