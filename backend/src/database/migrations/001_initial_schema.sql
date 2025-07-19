@@ -1,6 +1,9 @@
+-- Enable UUID extension if not already enabled
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 -- Create customers table
 CREATE TABLE IF NOT EXISTS customers (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
     email VARCHAR(255) UNIQUE NOT NULL,
     phone VARCHAR(20),
@@ -14,7 +17,7 @@ CREATE TABLE IF NOT EXISTS customers (
 
 -- Create wash_types table
 CREATE TABLE IF NOT EXISTS wash_types (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     name VARCHAR(255) NOT NULL,
     description TEXT,
     duration INTEGER NOT NULL CHECK (duration > 0), -- Duration in seconds
@@ -27,7 +30,7 @@ CREATE TABLE IF NOT EXISTS wash_types (
 
 -- Create wash_sessions table for tracking wash usage
 CREATE TABLE IF NOT EXISTS wash_sessions (
-    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     customer_id UUID REFERENCES customers(id) ON DELETE SET NULL,
     wash_type_id UUID REFERENCES wash_types(id) ON DELETE SET NULL,
     relay_id INTEGER NOT NULL CHECK (relay_id >= 1 AND relay_id <= 5),
