@@ -40,6 +40,7 @@ const corsOptions = {
       'http://localhost:3000',
       'https://qualitywash.vercel.app',
       'https://qualitywash.vercel.app/',
+      'https://qualitywash-pddnbn7et-stephen-villavasos-projects.vercel.app',
       process.env.CORS_ORIGIN
     ].filter(Boolean) as string[];
     

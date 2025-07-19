@@ -107,6 +107,12 @@ router.get('/status', async (req: Request, res: Response) => {
       'SELECT id, name, price, relay_id FROM wash_types LIMIT 5'
     );
 
+    // Convert price from string to number for frontend compatibility
+    const washTypesWithNumberPrice = sampleWashTypes.rows.map((row: any) => ({
+      ...row,
+      price: parseFloat(row.price)
+    }));
+
     return res.json({
       success: true,
       database: 'connected',
@@ -117,7 +123,7 @@ router.get('/status', async (req: Request, res: Response) => {
       },
       samples: {
         customers: sampleCustomers.rows,
-        washTypes: sampleWashTypes.rows
+        washTypes: washTypesWithNumberPrice
       },
       timestamp: new Date().toISOString()
     });
