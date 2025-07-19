@@ -10,7 +10,7 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
-    "next": "14.0.3",
+    "next": "^14.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "@stripe/stripe-js": "^2.1.11",
@@ -34,6 +34,6 @@
     "autoprefixer": "^10.4.16",
     "postcss": "^8.4.31",
     "eslint": "^8.53.0",
-    "eslint-config-next": "14.0.3"
+    "eslint-config-next": "^14.1.0"
   }
 } 
