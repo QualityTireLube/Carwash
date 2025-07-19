@@ -18,7 +18,7 @@ const validateCustomer = [
 router.get('/', async (req: Request, res: Response) => {
   try {
     const result = await db.query(
-      'SELECT * FROM customers ORDER BY created_at DESC'
+      'SELECT id, name, email, phone, rfid_tag as "rfidTag", membership_status as "membershipStatus", stripe_customer_id as "stripeCustomerId", stripe_subscription_id as "stripeSubscriptionId", created_at as "createdAt", updated_at as "updatedAt" FROM customers ORDER BY created_at DESC'
     );
     return res.json({ customers: result.rows });
   } catch (error) {
@@ -32,7 +32,7 @@ router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const result = await db.query(
-      'SELECT * FROM customers WHERE id = $1',
+      'SELECT id, name, email, phone, rfid_tag as "rfidTag", membership_status as "membershipStatus", stripe_customer_id as "stripeCustomerId", stripe_subscription_id as "stripeSubscriptionId", created_at as "createdAt", updated_at as "updatedAt" FROM customers WHERE id = $1',
       [id]
     );
     
@@ -60,7 +60,7 @@ router.post('/', validateCustomer, async (req: Request, res: Response) => {
     const result = await db.query(
       `INSERT INTO customers (name, email, rfid_tag, membership_status, phone)
        VALUES ($1, $2, $3, $4, $5)
-       RETURNING *`,
+       RETURNING id, name, email, phone, rfid_tag as "rfidTag", membership_status as "membershipStatus", stripe_customer_id as "stripeCustomerId", stripe_subscription_id as "stripeSubscriptionId", created_at as "createdAt", updated_at as "updatedAt"`,
       [name, email, rfidTag, membershipStatus, phone]
     );
 
@@ -87,7 +87,7 @@ router.put('/:id', validateCustomer, async (req: Request, res: Response) => {
       `UPDATE customers 
        SET name = $1, email = $2, rfid_tag = $3, membership_status = $4, phone = $5, updated_at = NOW()
        WHERE id = $6
-       RETURNING *`,
+       RETURNING id, name, email, phone, rfid_tag as "rfidTag", membership_status as "membershipStatus", stripe_customer_id as "stripeCustomerId", stripe_subscription_id as "stripeSubscriptionId", created_at as "createdAt", updated_at as "updatedAt"`,
       [name, email, rfidTag, membershipStatus, phone, id]
     );
 

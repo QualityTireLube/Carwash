@@ -8,6 +8,7 @@ import { connectDatabase } from './config/database';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
 import { runMigrations } from './database/migrate';
+import { db } from './config/database'; // Added import for db
 
 // Routes
 import customerRoutes from './routes/customers';
@@ -62,12 +63,27 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
 // Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'OK', 
+app.get('/health', async (req, res) => {
+  const health = {
+    status: 'OK',
     timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV 
-  });
+    environment: process.env.NODE_ENV,
+    database: 'unknown',
+    version: process.env.npm_package_version || '1.0.0'
+  };
+
+  try {
+    // Test database connection
+    await db.query('SELECT 1');
+    health.database = 'connected';
+  } catch (error) {
+    health.database = 'disconnected';
+    health.status = 'ERROR';
+    logger.error('Health check database error:', error);
+  }
+
+  const statusCode = health.status === 'OK' ? 200 : 503;
+  res.status(statusCode).json(health);
 });
 
 // API routes

@@ -19,7 +19,7 @@ const validateWashType = [
 router.get('/', async (req: Request, res: Response) => {
   try {
     const result = await db.query(
-      'SELECT * FROM wash_types ORDER BY name ASC'
+      'SELECT id, name, description, duration, price, relay_id as "relayId", is_active as "isActive", created_at as "createdAt", updated_at as "updatedAt" FROM wash_types ORDER BY name ASC'
     );
     return res.json({ washTypes: result.rows });
   } catch (error) {
@@ -33,7 +33,7 @@ router.get('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
     const result = await db.query(
-      'SELECT * FROM wash_types WHERE id = $1',
+      'SELECT id, name, description, duration, price, relay_id as "relayId", is_active as "isActive", created_at as "createdAt", updated_at as "updatedAt" FROM wash_types WHERE id = $1',
       [id]
     );
     
@@ -61,7 +61,7 @@ router.post('/', validateWashType, async (req: Request, res: Response) => {
     const result = await db.query(
       `INSERT INTO wash_types (name, description, duration, price, relay_id, is_active)
        VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING *`,
+       RETURNING id, name, description, duration, price, relay_id as "relayId", is_active as "isActive", created_at as "createdAt", updated_at as "updatedAt"`,
       [name, description, duration, price, relayId, isActive]
     );
 
@@ -88,7 +88,7 @@ router.put('/:id', validateWashType, async (req: Request, res: Response) => {
       `UPDATE wash_types 
        SET name = $1, description = $2, duration = $3, price = $4, relay_id = $5, is_active = $6, updated_at = NOW()
        WHERE id = $7
-       RETURNING *`,
+       RETURNING id, name, description, duration, price, relay_id as "relayId", is_active as "isActive", created_at as "createdAt", updated_at as "updatedAt"`,
       [name, description, duration, price, relayId, isActive, id]
     );
 

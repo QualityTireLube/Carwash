@@ -5,6 +5,13 @@ class Database {
   private pool: Pool;
 
   constructor() {
+    // Check if DATABASE_URL is provided
+    if (!process.env.DATABASE_URL) {
+      const error = new Error('DATABASE_URL environment variable is required but not set');
+      logger.error('Database configuration error:', error);
+      throw error;
+    }
+
     this.pool = new Pool({
       connectionString: process.env.DATABASE_URL,
       ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
@@ -16,6 +23,15 @@ class Database {
     this.pool.on('error', (err) => {
       logger.error('Unexpected error on idle client', err);
       process.exit(-1);
+    });
+
+    // Log database configuration (without credentials)
+    const dbUrl = process.env.DATABASE_URL;
+    const maskedUrl = dbUrl.replace(/(:\/\/)([^:]+):([^@]+)@/, '$1****:****@');
+    logger.info('Database configuration:', { 
+      url: maskedUrl,
+      ssl: process.env.NODE_ENV === 'production',
+      maxConnections: 20
     });
   }
 
