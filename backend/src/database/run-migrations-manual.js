@@ -11,10 +11,12 @@ async function runMigrationsManual() {
   // Log database connection info (without credentials)
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) {
+    logger.error('DATABASE_URL environment variable is missing!');
     throw new Error('DATABASE_URL environment variable is required');
   }
   
   const maskedUrl = dbUrl.replace(/(:\/\/)([^:]+):([^@]+)@/, '$1****:****@');
+  logger.info('🚀 Starting migration process...');
   logger.info('Migration connecting to database:', { url: maskedUrl });
 
   const pool = new Pool({
@@ -86,6 +88,7 @@ async function runMigrationsManual() {
     logger.info('✓ Wash sessions table created');
 
     // Create customer_memberships table
+    logger.info('Creating customer_memberships table...');
     await pool.query(`
       CREATE TABLE IF NOT EXISTS customer_memberships (
           id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -102,7 +105,7 @@ async function runMigrationsManual() {
           updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
       )
     `);
-    logger.info('✓ Customer memberships table created');
+    logger.info('✅ Customer memberships table created successfully!');
 
     // Create indexes
     await pool.query('CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email)');
@@ -162,14 +165,29 @@ async function runMigrationsManual() {
     logger.info('🎉 Manual database migrations completed successfully!');
     
     // Test the tables
+    logger.info('Verifying tables exist...');
     const customersResult = await pool.query('SELECT COUNT(*) FROM customers');
     const washTypesResult = await pool.query('SELECT COUNT(*) FROM wash_types');
+    
+    // Specifically test customer_memberships table
+    logger.info('Testing customer_memberships table...');
     const membershipResult = await pool.query('SELECT COUNT(*) FROM customer_memberships');
     
-    logger.info(`✓ Tables verified - Customers: ${customersResult.rows[0].count}, Wash Types: ${washTypesResult.rows[0].count}, Memberships: ${membershipResult.rows[0].count}`);
+    // Verify table structure
+    const membershipSchema = await pool.query(`
+      SELECT column_name, data_type 
+      FROM information_schema.columns 
+      WHERE table_name = 'customer_memberships' 
+      ORDER BY ordinal_position
+    `);
+    
+    logger.info(`✅ Tables verified - Customers: ${customersResult.rows[0].count}, Wash Types: ${washTypesResult.rows[0].count}, Memberships: ${membershipResult.rows[0].count}`);
+    logger.info(`✅ Customer memberships table has ${membershipSchema.rows.length} columns`);
     
   } catch (error) {
-    logger.error('Manual migration failed:', error);
+    logger.error('❌ MIGRATION FAILED! This will cause API errors.');
+    logger.error('Migration error details:', error);
+    logger.error('Error stack:', error.stack);
     throw error;
   } finally {
     await pool.end();

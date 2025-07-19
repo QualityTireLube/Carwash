@@ -168,4 +168,79 @@ router.delete('/clear-data', async (req: Request, res: Response) => {
   }
 });
 
+// Manual fix for customer_memberships table
+router.post('/create-memberships-table', async (req: Request, res: Response) => {
+  try {
+    logger.info('🔧 Manual creation of customer_memberships table requested...');
+    
+    // Create customer_memberships table
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS customer_memberships (
+          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+          customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+          wash_type_id UUID NOT NULL REFERENCES wash_types(id) ON DELETE CASCADE,
+          status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'expired', 'suspended')),
+          start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          end_date TIMESTAMP WITH TIME ZONE,
+          billing_cycle VARCHAR(20) DEFAULT 'monthly' CHECK (billing_cycle IN ('monthly', 'quarterly', 'annual', 'lifetime')),
+          price DECIMAL(10,2),
+          stripe_subscription_id VARCHAR(255),
+          notes TEXT,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )
+    `);
+    
+    // Create indexes
+    await db.query('CREATE INDEX IF NOT EXISTS idx_customer_memberships_customer_id ON customer_memberships(customer_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_customer_memberships_wash_type_id ON customer_memberships(wash_type_id)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_customer_memberships_status ON customer_memberships(status)');
+    await db.query('CREATE INDEX IF NOT EXISTS idx_customer_memberships_dates ON customer_memberships(start_date, end_date)');
+    
+    // Unique constraint
+    await db.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_customer_memberships_unique_active 
+      ON customer_memberships(customer_id, wash_type_id) 
+      WHERE status = 'active'
+    `);
+    
+    // Create trigger function
+    await db.query(`
+      CREATE OR REPLACE FUNCTION update_customer_memberships_updated_at()
+      RETURNS TRIGGER AS $$
+      BEGIN
+          NEW.updated_at = NOW();
+          RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql
+    `);
+    
+    await db.query(`
+      DROP TRIGGER IF EXISTS trigger_update_customer_memberships_updated_at ON customer_memberships;
+      CREATE TRIGGER trigger_update_customer_memberships_updated_at
+          BEFORE UPDATE ON customer_memberships
+          FOR EACH ROW
+          EXECUTE FUNCTION update_customer_memberships_updated_at()
+    `);
+    
+    // Test the table
+    const result = await db.query('SELECT COUNT(*) FROM customer_memberships');
+    
+    logger.info('✅ Customer memberships table created successfully via manual endpoint');
+    
+    return res.json({ 
+      success: true,
+      message: 'Customer memberships table created successfully',
+      rowCount: result.rows[0].count
+    });
+    
+  } catch (error) {
+    logger.error('Error creating customer memberships table manually:', error);
+    return res.status(500).json({ 
+      error: 'Failed to create customer memberships table',
+      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    });
+  }
+});
+
 export default router; 
