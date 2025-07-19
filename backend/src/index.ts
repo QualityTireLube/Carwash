@@ -7,6 +7,7 @@ import rateLimit from 'express-rate-limit';
 import { connectDatabase } from './config/database';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
+import { runMigrations } from './database/migrate';
 
 // Routes
 import customerRoutes from './routes/customers';
@@ -92,6 +93,14 @@ const startServer = async () => {
     // Connect to database
     await connectDatabase();
     logger.info('Database connected successfully');
+
+    // Run migrations
+    try {
+      await runMigrations();
+      logger.info('Database migrations completed');
+    } catch (migrationError) {
+      logger.warn('Migration failed, continuing with existing schema:', migrationError);
+    }
 
     // Start server
     app.listen(PORT, () => {
