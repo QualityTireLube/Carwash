@@ -10,7 +10,7 @@ interface DashboardStats {
   totalCustomers: number
   activeMemberships: number
   totalWashTypes: number
-  systemStatus: 'online' | 'offline'
+  systemStatus: 'online' | 'offline' | 'loading'
 }
 
 export default function Dashboard() {
@@ -18,31 +18,35 @@ export default function Dashboard() {
     totalCustomers: 0,
     activeMemberships: 0,
     totalWashTypes: 0,
-    systemStatus: 'offline'
+    systemStatus: 'loading'
   })
 
   useEffect(() => {
     // Fetch dashboard stats
     const fetchStats = async () => {
       try {
-        const [customersRes, washTypesRes, statusRes] = await Promise.all([
+        const [customersRes, washTypesRes, statusRes] = await Promise.allSettled([
           getCustomers(),
           getWashTypes(),
           testConnection()
         ])
 
         setStats({
-          totalCustomers: customersRes.customers?.length || 0,
-          activeMemberships: customersRes.customers?.filter((c: any) => c.membership_status === 'active').length || 0,
-          totalWashTypes: washTypesRes.washTypes?.length || 0,
-          systemStatus: statusRes.success ? 'online' : 'offline'
+          totalCustomers: customersRes.status === 'fulfilled' ? (customersRes.value.customers?.length || 0) : 0,
+          activeMemberships: customersRes.status === 'fulfilled' ? (customersRes.value.customers?.filter((c: any) => c.membership_status === 'active').length || 0) : 0,
+          totalWashTypes: washTypesRes.status === 'fulfilled' ? (washTypesRes.value.washTypes?.length || 0) : 0,
+          systemStatus: statusRes.status === 'fulfilled' && statusRes.value.success ? 'online' : 'offline'
         })
       } catch (error) {
         console.error('Error fetching stats:', error)
+        setStats(prev => ({ ...prev, systemStatus: 'offline' }))
       }
     }
 
-    fetchStats()
+    // Only fetch if we're in the browser
+    if (typeof window !== 'undefined') {
+      fetchStats()
+    }
   }, [])
 
   const dashboardCards = [
@@ -69,9 +73,9 @@ export default function Dashboard() {
     },
     {
       title: 'System Status',
-      value: stats.systemStatus === 'online' ? 'Online' : 'Offline',
+      value: stats.systemStatus === 'loading' ? 'Loading...' : (stats.systemStatus === 'online' ? 'Online' : 'Offline'),
       icon: Zap,
-      color: stats.systemStatus === 'online' ? 'bg-green-500' : 'bg-red-500',
+      color: stats.systemStatus === 'loading' ? 'bg-gray-500' : (stats.systemStatus === 'online' ? 'bg-green-500' : 'bg-red-500'),
       href: '/control'
     }
   ]
@@ -153,11 +157,13 @@ export default function Dashboard() {
               <div className="flex items-center justify-between">
                 <span className="text-gray-600">ESP32 Connection</span>
                 <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  stats.systemStatus === 'online' 
+                  stats.systemStatus === 'loading' 
+                    ? 'bg-gray-100 text-gray-800'
+                    : stats.systemStatus === 'online' 
                     ? 'bg-green-100 text-green-800' 
                     : 'bg-red-100 text-red-800'
                 }`}>
-                  {stats.systemStatus === 'online' ? 'Connected' : 'Disconnected'}
+                  {stats.systemStatus === 'loading' ? 'Checking...' : (stats.systemStatus === 'online' ? 'Connected' : 'Disconnected')}
                 </span>
               </div>
               <div className="flex items-center justify-between">

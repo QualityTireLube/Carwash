@@ -25,4 +25,26 @@ export async function getCustomers() {
 export async function getWashTypes() {
   const res = await fetch(`${API_BASE_URL}/api/wash-types`);
   return await res.json();
+}
+
+export async function createCustomer(customerData: any) {
+  const res = await fetch(`${API_BASE_URL}/api/customers`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(customerData),
+  });
+  return await res.json();
+}
+
+export async function createWashType(washTypeData: any) {
+  const res = await fetch(`${API_BASE_URL}/api/wash-types`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(washTypeData),
+  });
+  return await res.json();
 } 
