@@ -9,6 +9,36 @@ router.post('/add-data', async (req: Request, res: Response) => {
   try {
     logger.info('Adding test data via API...');
 
+    // First, ensure customer_memberships table exists (CRITICAL FIX)
+    try {
+      logger.info('🔧 Ensuring customer_memberships table exists...');
+      await db.query(`
+        CREATE TABLE IF NOT EXISTS customer_memberships (
+            id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+            wash_type_id UUID NOT NULL REFERENCES wash_types(id) ON DELETE CASCADE,
+            status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'expired', 'suspended')),
+            start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            end_date TIMESTAMP WITH TIME ZONE,
+            billing_cycle VARCHAR(20) DEFAULT 'monthly' CHECK (billing_cycle IN ('monthly', 'quarterly', 'annual', 'lifetime')),
+            price DECIMAL(10,2),
+            stripe_subscription_id VARCHAR(255),
+            notes TEXT,
+            created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+            updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+        )
+      `);
+      
+      // Create essential indexes
+      await db.query('CREATE INDEX IF NOT EXISTS idx_customer_memberships_customer_id ON customer_memberships(customer_id)');
+      await db.query('CREATE INDEX IF NOT EXISTS idx_customer_memberships_wash_type_id ON customer_memberships(wash_type_id)');
+      
+      logger.info('✅ Customer memberships table verified/created');
+    } catch (tableError) {
+      logger.error('Error creating customer_memberships table:', tableError);
+      // Continue anyway
+    }
+
     // Add test customers
     const customers = [
       { name: 'John Doe', email: 'john.doe@example.com', phone: '555-0101', membership_status: 'active' },
