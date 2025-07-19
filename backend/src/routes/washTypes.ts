@@ -21,7 +21,14 @@ router.get('/', async (req: Request, res: Response) => {
     const result = await db.query(
       'SELECT id, name, description, duration, price, relay_id as "relayId", is_active as "isActive", created_at as "createdAt", updated_at as "updatedAt" FROM wash_types ORDER BY name ASC'
     );
-    return res.json({ washTypes: result.rows });
+    
+    // Convert price from string to number for frontend compatibility
+    const washTypes = result.rows.map((row: any) => ({
+      ...row,
+      price: parseFloat(row.price)
+    }));
+    
+    return res.json({ washTypes });
   } catch (error) {
     logger.error('Error fetching wash types:', error);
     return res.status(500).json({ error: 'Failed to fetch wash types' });
