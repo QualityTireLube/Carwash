@@ -9,11 +9,21 @@ router.post('/add-data', async (req: Request, res: Response) => {
   try {
     logger.info('Adding test data via API...');
 
-    // First, ensure customer_memberships table exists (CRITICAL FIX)
+    // CRITICAL FIX: Force create customer_memberships table
     try {
-      logger.info('🔧 Ensuring customer_memberships table exists...');
+      logger.info('🔧 FORCING customer_memberships table creation...');
+      
+      // First drop the table if it exists but is broken
+      try {
+        await db.query('DROP TABLE IF EXISTS customer_memberships CASCADE');
+        logger.info('Dropped existing table if any');
+      } catch (dropError) {
+        logger.info('No existing table to drop');
+      }
+      
+      // Create fresh table
       await db.query(`
-        CREATE TABLE IF NOT EXISTS customer_memberships (
+        CREATE TABLE customer_memberships (
             id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
             customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
             wash_type_id UUID NOT NULL REFERENCES wash_types(id) ON DELETE CASCADE,
@@ -30,13 +40,18 @@ router.post('/add-data', async (req: Request, res: Response) => {
       `);
       
       // Create essential indexes
-      await db.query('CREATE INDEX IF NOT EXISTS idx_customer_memberships_customer_id ON customer_memberships(customer_id)');
-      await db.query('CREATE INDEX IF NOT EXISTS idx_customer_memberships_wash_type_id ON customer_memberships(wash_type_id)');
+      await db.query('CREATE INDEX idx_customer_memberships_customer_id ON customer_memberships(customer_id)');
+      await db.query('CREATE INDEX idx_customer_memberships_wash_type_id ON customer_memberships(wash_type_id)');
       
-      logger.info('✅ Customer memberships table verified/created');
+      // Test the table
+      const testResult = await db.query('SELECT COUNT(*) FROM customer_memberships');
+      logger.info('✅ Customer memberships table FORCE CREATED successfully!');
+      logger.info(`Table test count: ${testResult.rows[0].count}`);
+      
     } catch (tableError) {
-      logger.error('Error creating customer_memberships table:', tableError);
-      // Continue anyway
+      logger.error('❌ CRITICAL: Failed to force create customer_memberships table:', tableError);
+      logger.error('Table error details:', tableError);
+      // Continue anyway but this is bad
     }
 
     // Add test customers
