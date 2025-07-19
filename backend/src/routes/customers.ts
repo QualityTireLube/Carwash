@@ -11,7 +11,7 @@ const validateCustomer = [
   body('email').isEmail().withMessage('Valid email is required'),
   body('rfidTag').optional().isString(),
   body('membershipStatus').isIn(['active', 'inactive', 'pending']).withMessage('Invalid membership status'),
-  body('phone').optional().isMobilePhone().withMessage('Valid phone number required'),
+  body('phone').optional().isMobilePhone('any').withMessage('Valid phone number required'),
 ];
 
 // Get all customers
