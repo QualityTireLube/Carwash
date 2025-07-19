@@ -120,7 +120,7 @@ export default function WashTypesPage() {
                 <div className="space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Price:</span>
-                    <span className="font-medium text-gray-900">${washType.price.toFixed(2)}</span>
+                    <span className="font-medium text-gray-900">${typeof washType.price === 'number' ? washType.price.toFixed(2) : parseFloat(washType.price).toFixed(2)}</span>
                   </div>
                   <div className="flex justify-between text-sm">
                     <span className="text-gray-600">Duration:</span>

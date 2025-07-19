@@ -40,11 +40,13 @@ const corsOptions = {
       'http://localhost:3000',
       'https://qualitywash.vercel.app',
       'https://qualitywash.vercel.app/',
-      'https://qualitywash-pddnbn7et-stephen-villavasos-projects.vercel.app',
       process.env.CORS_ORIGIN
     ].filter(Boolean) as string[];
     
-    if (allowedOrigins.includes(origin)) {
+    // Allow any Vercel app URL for this project
+    const isVercelApp = origin.includes('qualitywash') && origin.endsWith('.vercel.app');
+    
+    if (allowedOrigins.includes(origin) || isVercelApp) {
       callback(null, true);
     } else {
       console.log('CORS blocked origin:', origin);
