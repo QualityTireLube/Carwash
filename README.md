@@ -154,4 +154,4 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
 
 ## 📝 License
 
-MIT License - see LICENSE file for details 
+MIT License - see LICENSE file for detail(s) 
