@@ -35,7 +35,8 @@ export default function NewMembershipPage() {
     billingCycle: 'monthly',
     price: '',
     endDate: '',
-    notes: ''
+    notes: '',
+    rfidTag: ''
   })
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -78,7 +79,8 @@ export default function NewMembershipPage() {
         billingCycle: formData.billingCycle,
         price: formData.price ? parseFloat(formData.price) : undefined,
         endDate: formData.endDate || undefined,
-        notes: formData.notes || undefined
+        notes: formData.notes || undefined,
+        rfidTag: formData.rfidTag || undefined
       }
       
       await createMembership(membershipData)
@@ -276,6 +278,25 @@ export default function NewMembershipPage() {
                   Leave empty for indefinite membership
                 </p>
               </div>
+            </div>
+
+            {/* RFID Tag */}
+            <div>
+              <label htmlFor="rfidTag" className="block text-sm font-medium text-gray-700 mb-2">
+                RFID Tag (optional)
+              </label>
+              <input
+                type="text"
+                id="rfidTag"
+                name="rfidTag"
+                value={formData.rfidTag}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                placeholder="Enter RFID tag identifier (e.g. A1B2C3D4)"
+              />
+              <p className="text-xs text-gray-500 mt-1">
+                This RFID tag will trigger the ESP32 relay for this wash type
+              </p>
             </div>
 
             {/* Notes */}

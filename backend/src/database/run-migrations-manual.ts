@@ -90,6 +90,19 @@ async function runMigrationsManual() {
     
     logger.info(`✓ Tables verified - Customers: ${customersResult.rows[0].count}, Wash Types: ${washTypesResult.rows[0].count}`);
     
+    // Add RFID tag to customer_memberships table (new migration)
+    logger.info('Adding RFID tag field to customer_memberships...');
+    try {
+      await db.query(`
+        ALTER TABLE customer_memberships 
+        ADD COLUMN IF NOT EXISTS rfid_tag VARCHAR(100) UNIQUE
+      `);
+      await db.query('CREATE INDEX IF NOT EXISTS idx_customer_memberships_rfid_tag ON customer_memberships(rfid_tag)');
+      logger.info('✅ RFID tag field added to customer_memberships table');
+    } catch (rfidError) {
+      logger.info('RFID field may already exist, continuing...');
+    }
+
   } catch (error) {
     logger.error('Manual migration failed:', error);
     throw error;

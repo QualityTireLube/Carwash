@@ -13,6 +13,7 @@ const validateMembership = [
   body('billingCycle').optional().isIn(['monthly', 'quarterly', 'annual', 'lifetime']).withMessage('Invalid billing cycle'),
   body('price').optional().isFloat({ min: 0 }).withMessage('Price must be a positive number'),
   body('endDate').optional().isISO8601().withMessage('End date must be a valid date'),
+  body('rfidTag').optional().isString().withMessage('RFID tag must be a string'),
 ];
 
 // Get all memberships for a customer
@@ -32,6 +33,7 @@ router.get('/customer/:customerId', async (req: Request, res: Response) => {
         cm.price,
         cm.stripe_subscription_id as "stripeSubscriptionId",
         cm.notes,
+        cm.rfid_tag as "rfidTag",
         cm.created_at as "createdAt",
         cm.updated_at as "updatedAt",
         wt.name as "washTypeName",
@@ -87,6 +89,7 @@ router.get('/wash-type/:washTypeId', async (req: Request, res: Response) => {
         cm.end_date as "endDate",
         cm.billing_cycle as "billingCycle",
         cm.price,
+        cm.rfid_tag as "rfidTag",
         cm.created_at as "createdAt",
         c.name as "customerName",
         c.email as "customerEmail",
@@ -107,6 +110,7 @@ router.get('/wash-type/:washTypeId', async (req: Request, res: Response) => {
       billingCycle: row.billingCycle,
       price: row.price ? parseFloat(row.price) : null,
       createdAt: row.createdAt,
+      rfidTag: row.rfidTag,
       customer: {
         name: row.customerName,
         email: row.customerEmail,
@@ -162,7 +166,8 @@ router.post('/', validateMembership, async (req: Request, res: Response) => {
       billingCycle = 'monthly',
       price,
       endDate,
-      notes
+      notes,
+      rfidTag
     } = req.body;
 
     // Check if customer exists
@@ -194,8 +199,8 @@ router.post('/', validateMembership, async (req: Request, res: Response) => {
 
     const result = await db.query(`
       INSERT INTO customer_memberships (
-        customer_id, wash_type_id, status, billing_cycle, price, end_date, notes
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+        customer_id, wash_type_id, status, billing_cycle, price, end_date, notes, rfid_tag
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
       RETURNING 
         id,
         customer_id as "customerId",
@@ -206,9 +211,10 @@ router.post('/', validateMembership, async (req: Request, res: Response) => {
         billing_cycle as "billingCycle",
         price,
         notes,
+        rfid_tag as "rfidTag",
         created_at as "createdAt",
         updated_at as "updatedAt"
-    `, [customerId, washTypeId, status, billingCycle, membershipPrice, endDate, notes]);
+    `, [customerId, washTypeId, status, billingCycle, membershipPrice, endDate, notes, rfidTag]);
 
     const membership = {
       ...result.rows[0],
@@ -238,7 +244,7 @@ router.post('/', validateMembership, async (req: Request, res: Response) => {
 router.put('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const { status, endDate, notes, price } = req.body;
+    const { status, endDate, notes, price, rfidTag } = req.body;
 
     const updateFields = [];
     const values = [];
@@ -259,6 +265,10 @@ router.put('/:id', async (req: Request, res: Response) => {
     if (price !== undefined) {
       updateFields.push(`price = $${paramCount++}`);
       values.push(price);
+    }
+    if (rfidTag !== undefined) {
+      updateFields.push(`rfid_tag = $${paramCount++}`);
+      values.push(rfidTag);
     }
 
     if (updateFields.length === 0) {
@@ -282,6 +292,7 @@ router.put('/:id', async (req: Request, res: Response) => {
         billing_cycle as "billingCycle",
         price,
         notes,
+        rfid_tag as "rfidTag",
         updated_at as "updatedAt"
     `, values);
 
@@ -365,6 +376,7 @@ router.get('/:id', async (req: Request, res: Response) => {
         cm.price,
         cm.stripe_subscription_id as "stripeSubscriptionId",
         cm.notes,
+        cm.rfid_tag as "rfidTag",
         cm.created_at as "createdAt",
         cm.updated_at as "updatedAt",
         c.name as "customerName",
@@ -393,6 +405,7 @@ router.get('/:id', async (req: Request, res: Response) => {
       price: row.price ? parseFloat(row.price) : null,
       stripeSubscriptionId: row.stripeSubscriptionId,
       notes: row.notes,
+      rfidTag: row.rfidTag,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       customer: {

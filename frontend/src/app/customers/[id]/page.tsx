@@ -44,6 +44,7 @@ interface Membership {
   billingCycle: string
   price: number
   notes?: string
+  rfidTag?: string
   createdAt: string
   washType: {
     name: string
@@ -347,6 +348,14 @@ export default function CustomerDetailPage() {
                             {new Date(membership.startDate).toLocaleDateString()}
                           </span>
                         </div>
+                        {membership.rfidTag && (
+                          <div className="col-span-2">
+                            <span className="text-gray-500">RFID Tag:</span>
+                            <span className="ml-1 text-gray-900 font-mono bg-gray-100 px-2 py-1 rounded text-sm">
+                              {membership.rfidTag}
+                            </span>
+                          </div>
+                        )}
                         {membership.endDate && (
                           <div className="col-span-2">
                             <span className="text-gray-500">Ends:</span>

@@ -227,6 +227,7 @@ export async function createMembership(membershipData: {
   price?: number;
   endDate?: string;
   notes?: string;
+  rfidTag?: string;
 }) {
   return await apiRequest(`${API_BASE_URL}/api/memberships`, {
     method: 'POST',
