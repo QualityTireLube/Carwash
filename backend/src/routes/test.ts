@@ -381,4 +381,90 @@ router.post('/fix-table', async (req: Request, res: Response) => {
   }
 });
 
+// Create RFID test data for ESP32 testing
+router.post('/create-rfid-data', async (req: Request, res: Response) => {
+  try {
+    logger.info('Creating RFID test data for ESP32 testing...');
+
+    // First ensure we have some customers and wash types
+    const customerResult = await db.query('SELECT COUNT(*) FROM customers');
+    const washTypeResult = await db.query('SELECT COUNT(*) FROM wash_types');
+    
+    if (customerResult.rows[0].count === '0' || washTypeResult.rows[0].count === '0') {
+      return res.status(400).json({
+        error: 'Please create customers and wash types first using /api/test/add-data'
+      });
+    }
+
+    // Get existing customers and wash types
+    const customers = await db.query('SELECT id, name FROM customers LIMIT 3');
+    const washTypes = await db.query('SELECT id, name, relay_id FROM wash_types LIMIT 3');
+
+    const testMemberships = [];
+
+    for (let i = 0; i < customers.rows.length && i < washTypes.rows.length; i++) {
+      const customer = customers.rows[i];
+      const washType = washTypes.rows[i];
+      const rfidTag = `RFID_${String(i + 1).padStart(3, '0')}_TEST`; // RFID_001_TEST, RFID_002_TEST, etc.
+
+      // Check if membership already exists
+      const existingMembership = await db.query(
+        'SELECT id FROM customer_memberships WHERE customer_id = $1 AND wash_type_id = $2',
+        [customer.id, washType.id]
+      );
+
+      let membershipId;
+      if (existingMembership.rows.length > 0) {
+        // Update existing membership with RFID
+        const updateResult = await db.query(`
+          UPDATE customer_memberships 
+          SET rfid_tag = $1, status = 'active', updated_at = NOW()
+          WHERE customer_id = $2 AND wash_type_id = $3
+          RETURNING id
+        `, [rfidTag, customer.id, washType.id]);
+        membershipId = updateResult.rows[0].id;
+        logger.info(`Updated existing membership with RFID: ${rfidTag}`);
+      } else {
+        // Create new membership with RFID
+        const membershipResult = await db.query(`
+          INSERT INTO customer_memberships (customer_id, wash_type_id, status, rfid_tag, billing_cycle, price)
+          VALUES ($1, $2, 'active', $3, 'monthly', 29.99)
+          RETURNING id
+        `, [customer.id, washType.id, rfidTag]);
+        membershipId = membershipResult.rows[0].id;
+        logger.info(`Created new membership with RFID: ${rfidTag}`);
+      }
+
+      testMemberships.push({
+        membershipId,
+        customerId: customer.id,
+        customerName: customer.name,
+        washTypeId: washType.id,
+        washTypeName: washType.name,
+        relayId: washType.relay_id,
+        rfidTag
+      });
+    }
+
+    logger.info('✅ RFID test data created successfully!');
+
+    return res.json({
+      success: true,
+      message: 'RFID test data created successfully',
+      testMemberships,
+      curlExample: `curl -X POST http://localhost:3001/api/trigger/rfid \\
+  -H "Content-Type: application/json" \\
+  -d '{"rfidTag": "${testMemberships[0]?.rfidTag || 'RFID_001_TEST'}"}'`
+    });
+
+  } catch (error) {
+    logger.error('Error creating RFID test data:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to create RFID test data',
+      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    });
+  }
+});
+
 export default router; 
