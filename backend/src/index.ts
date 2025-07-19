@@ -15,12 +15,18 @@ import customerRoutes from './routes/customers';
 import washTypeRoutes from './routes/washTypes';
 import relayRoutes from './routes/relay';
 import stripeRoutes from './routes/stripe';
+import testRoutes from './routes/test';
 
 // Load environment variables
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Trust proxy for production environments (Render, Heroku, etc.)
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+}
 
 // Security middleware
 app.use(helmet());
@@ -91,6 +97,7 @@ app.use('/api/customers', customerRoutes);
 app.use('/api/wash-types', washTypeRoutes);
 app.use('/api/trigger', relayRoutes);
 app.use('/api/stripe', stripeRoutes);
+app.use('/api/test', testRoutes);
 
 // Error handling middleware
 app.use(errorHandler);
