@@ -1,9 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Users, Plus, Search } from 'lucide-react'
+import { Users, Plus, Search, Eye, Edit, Trash2 } from 'lucide-react'
 import Link from 'next/link'
-import { getCustomers } from '@/utils/api'
+import { useRouter } from 'next/navigation'
+import { getCustomers, deleteCustomer } from '@/utils/api'
 
 interface Customer {
   id: number
@@ -15,9 +16,11 @@ interface Customer {
 }
 
 export default function CustomersPage() {
+  const router = useRouter()
   const [customers, setCustomers] = useState<Customer[]>([])
   const [loading, setLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [deleting, setDeleting] = useState<string | null>(null)
 
   useEffect(() => {
     const fetchCustomers = async () => {
@@ -38,6 +41,27 @@ export default function CustomersPage() {
     customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     customer.email.toLowerCase().includes(searchTerm.toLowerCase())
   )
+
+  const handleDelete = async (customer: Customer) => {
+    const confirmMessage = `Are you sure you want to delete customer "${customer.name}"?\n\nThis action cannot be undone and will remove all associated data.`
+    
+    if (!confirm(confirmMessage)) {
+      return
+    }
+
+    setDeleting(customer.id.toString())
+    try {
+      await deleteCustomer(customer.id.toString())
+      // Refresh the customer list
+      const response = await getCustomers()
+      setCustomers(response.customers || [])
+    } catch (error) {
+      console.error('Error deleting customer:', error)
+      alert('Failed to delete customer. Please try again.')
+    } finally {
+      setDeleting(null)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -119,13 +143,19 @@ export default function CustomersPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Joined
                     </th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredCustomers.map((customer) => (
                     <tr key={customer.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <div className="text-sm font-medium text-gray-900">{customer.name}</div>
+                      <td 
+                        className="px-6 py-4 whitespace-nowrap cursor-pointer"
+                        onClick={() => router.push(`/customers/${customer.id}`)}
+                      >
+                        <div className="text-sm font-medium text-gray-900 hover:text-blue-600">{customer.name}</div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="text-sm text-gray-900">{customer.email}</div>
@@ -137,6 +167,8 @@ export default function CustomersPage() {
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                           customer.membershipStatus === 'active' 
                             ? 'bg-green-100 text-green-800' 
+                            : customer.membershipStatus === 'pending'
+                            ? 'bg-yellow-100 text-yellow-800'
                             : 'bg-gray-100 text-gray-800'
                         }`}>
                           {customer.membershipStatus}
@@ -144,6 +176,39 @@ export default function CustomersPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(customer.createdAt).toLocaleDateString()}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center space-x-2">
+                          <Link
+                            href={`/customers/${customer.id}`}
+                            className="text-blue-600 hover:text-blue-900 p-1"
+                            title="View Details"
+                          >
+                            <Eye className="h-4 w-4" />
+                          </Link>
+                          <Link
+                            href={`/customers/${customer.id}/edit`}
+                            className="text-indigo-600 hover:text-indigo-900 p-1"
+                            title="Edit Customer"
+                          >
+                            <Edit className="h-4 w-4" />
+                          </Link>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleDelete(customer)
+                            }}
+                            disabled={deleting === customer.id.toString()}
+                            className="text-red-600 hover:text-red-900 p-1 disabled:opacity-50"
+                            title="Delete Customer"
+                          >
+                            {deleting === customer.id.toString() ? (
+                              <div className="animate-spin h-4 w-4 border-2 border-red-600 border-t-transparent rounded-full"></div>
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}

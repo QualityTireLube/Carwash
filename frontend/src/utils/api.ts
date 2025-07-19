@@ -74,6 +74,15 @@ export async function getWashTypes() {
   }
 }
 
+export async function getCustomer(id: string) {
+  try {
+    return await apiRequest(`${API_BASE_URL}/api/customers/${id}`);
+  } catch (error) {
+    console.error('Error fetching customer:', error);
+    throw error;
+  }
+}
+
 export async function createCustomer(customerData: any) {
   return await apiRequest(`${API_BASE_URL}/api/customers`, {
     method: 'POST',
@@ -81,10 +90,45 @@ export async function createCustomer(customerData: any) {
   });
 }
 
+export async function updateCustomer(id: string, customerData: any) {
+  return await apiRequest(`${API_BASE_URL}/api/customers/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(customerData),
+  });
+}
+
+export async function deleteCustomer(id: string) {
+  return await apiRequest(`${API_BASE_URL}/api/customers/${id}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getWashType(id: string) {
+  try {
+    return await apiRequest(`${API_BASE_URL}/api/wash-types/${id}`);
+  } catch (error) {
+    console.error('Error fetching wash type:', error);
+    throw error;
+  }
+}
+
 export async function createWashType(washTypeData: any) {
   return await apiRequest(`${API_BASE_URL}/api/wash-types`, {
     method: 'POST',
     body: JSON.stringify(washTypeData),
+  });
+}
+
+export async function updateWashType(id: string, washTypeData: any) {
+  return await apiRequest(`${API_BASE_URL}/api/wash-types/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(washTypeData),
+  });
+}
+
+export async function deleteWashType(id: string) {
+  return await apiRequest(`${API_BASE_URL}/api/wash-types/${id}`, {
+    method: 'DELETE',
   });
 }
 
