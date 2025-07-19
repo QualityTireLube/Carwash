@@ -467,4 +467,58 @@ router.post('/create-rfid-data', async (req: Request, res: Response) => {
   }
 });
 
+// Add RFID column to production database
+router.post('/add-rfid-column', async (req: Request, res: Response) => {
+  try {
+    logger.info('🔧 Adding RFID column to customer_memberships table...');
+
+    // Add rfid_tag column to customer_memberships table
+    await db.query(`
+      ALTER TABLE customer_memberships 
+      ADD COLUMN IF NOT EXISTS rfid_tag VARCHAR(100) UNIQUE
+    `);
+
+    // Create index for RFID tag lookups
+    await db.query(`
+      CREATE INDEX IF NOT EXISTS idx_customer_memberships_rfid_tag 
+      ON customer_memberships(rfid_tag)
+    `);
+
+    // Add comment
+    try {
+      await db.query(`
+        COMMENT ON COLUMN customer_memberships.rfid_tag 
+        IS 'RFID tag identifier for ESP32 relay activation'
+      `);
+    } catch (commentError) {
+      logger.info('Comment creation skipped (not critical)');
+    }
+
+    // Test the new column by querying it
+    const testResult = await db.query(`
+      SELECT column_name, data_type, is_nullable 
+      FROM information_schema.columns 
+      WHERE table_name = 'customer_memberships' 
+      AND column_name = 'rfid_tag'
+    `);
+
+    logger.info('✅ RFID column added successfully to production database!');
+
+    return res.json({
+      success: true,
+      message: 'RFID column added to customer_memberships table',
+      columnInfo: testResult.rows[0] || null,
+      readyForTesting: true
+    });
+
+  } catch (error) {
+    logger.error('❌ Failed to add RFID column:', error);
+    return res.status(500).json({
+      success: false,
+      error: 'Failed to add RFID column',
+      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    });
+  }
+});
+
 export default router; 
