@@ -124,6 +124,32 @@ router.get('/wash-type/:washTypeId', async (req: Request, res: Response) => {
 // Create a new membership
 router.post('/', validateMembership, async (req: Request, res: Response) => {
   try {
+    // EMERGENCY FIX: Ensure table exists before any operation
+    try {
+      await db.query('SELECT 1 FROM customer_memberships LIMIT 1');
+    } catch (tableError) {
+      if ((tableError as any).code === '42P01') {
+        logger.info('🚨 Table missing! Creating customer_memberships table...');
+        await db.query(`
+          CREATE TABLE customer_memberships (
+              id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+              customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+              wash_type_id UUID NOT NULL REFERENCES wash_types(id) ON DELETE CASCADE,
+              status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'expired', 'suspended')),
+              start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+              end_date TIMESTAMP WITH TIME ZONE,
+              billing_cycle VARCHAR(20) DEFAULT 'monthly' CHECK (billing_cycle IN ('monthly', 'quarterly', 'annual', 'lifetime')),
+              price DECIMAL(10,2),
+              stripe_subscription_id VARCHAR(255),
+              notes TEXT,
+              created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+              updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+          )
+        `);
+        logger.info('✅ Emergency table creation successful!');
+      }
+    }
+
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
       return res.status(400).json({ errors: errors.array() });
@@ -383,6 +409,57 @@ router.get('/:id', async (req: Request, res: Response) => {
   } catch (error) {
     logger.error('Error fetching membership:', error);
     return res.status(500).json({ error: 'Failed to fetch membership' });
+  }
+});
+
+// Emergency table creation endpoint
+router.post('/emergency-create-table', async (req: Request, res: Response) => {
+  try {
+    logger.info('🚨 EMERGENCY: Creating customer_memberships table...');
+    
+    // Drop table if exists
+    try {
+      await db.query('DROP TABLE IF EXISTS customer_memberships CASCADE');
+      logger.info('Dropped existing table');
+    } catch (e) {
+      logger.info('No table to drop');
+    }
+    
+    // Create table
+    await db.query(`
+      CREATE TABLE customer_memberships (
+          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+          customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+          wash_type_id UUID NOT NULL REFERENCES wash_types(id) ON DELETE CASCADE,
+          status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'expired', 'suspended')),
+          start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          end_date TIMESTAMP WITH TIME ZONE,
+          billing_cycle VARCHAR(20) DEFAULT 'monthly' CHECK (billing_cycle IN ('monthly', 'quarterly', 'annual', 'lifetime')),
+          price DECIMAL(10,2),
+          stripe_subscription_id VARCHAR(255),
+          notes TEXT,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )
+    `);
+    
+    // Test insert
+    const testCount = await db.query('SELECT COUNT(*) FROM customer_memberships');
+    
+    logger.info('✅ EMERGENCY TABLE CREATION SUCCESSFUL!');
+    
+    return res.json({
+      success: true,
+      message: 'Table created successfully',
+      count: testCount.rows[0].count
+    });
+    
+  } catch (error) {
+    logger.error('❌ EMERGENCY TABLE CREATION FAILED:', error);
+    return res.status(500).json({
+      success: false,
+      error: (error as Error).message
+    });
   }
 });
 
