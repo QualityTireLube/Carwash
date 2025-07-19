@@ -48,7 +48,13 @@ router.get('/:id', async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Wash type not found' });
     }
     
-    return res.json({ washType: result.rows[0] });
+    // Convert price from string to number for frontend compatibility
+    const washType = {
+      ...result.rows[0],
+      price: parseFloat(result.rows[0].price)
+    };
+    
+    return res.json({ washType });
   } catch (error) {
     logger.error('Error fetching wash type:', error);
     return res.status(500).json({ error: 'Failed to fetch wash type' });
@@ -72,8 +78,14 @@ router.post('/', validateWashType, async (req: Request, res: Response) => {
       [name, description, duration, price, relayId, isActive]
     );
 
-    logger.info('Wash type created:', { id: result.rows[0].id, name });
-    return res.status(201).json({ washType: result.rows[0] });
+    // Convert price from string to number for frontend compatibility
+    const washType = {
+      ...result.rows[0],
+      price: parseFloat(result.rows[0].price)
+    };
+
+    logger.info('Wash type created:', { id: washType.id, name });
+    return res.status(201).json({ washType });
   } catch (error) {
     logger.error('Error creating wash type:', error);
     return res.status(500).json({ error: 'Failed to create wash type' });
@@ -103,8 +115,14 @@ router.put('/:id', validateWashType, async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Wash type not found' });
     }
 
+    // Convert price from string to number for frontend compatibility
+    const washType = {
+      ...result.rows[0],
+      price: parseFloat(result.rows[0].price)
+    };
+
     logger.info('Wash type updated:', { id, name });
-    return res.json({ washType: result.rows[0] });
+    return res.json({ washType });
   } catch (error) {
     logger.error('Error updating wash type:', error);
     return res.status(500).json({ error: 'Failed to update wash type' });
