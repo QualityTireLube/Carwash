@@ -117,12 +117,20 @@ const startServer = async () => {
     await connectDatabase();
     logger.info('Database connected successfully');
 
-    // Run migrations
+    // Run migrations - make this more robust
     try {
       await runMigrations();
-      logger.info('Database migrations completed');
+      logger.info('Database migrations completed successfully');
     } catch (migrationError) {
-      logger.warn('Migration failed, continuing with existing schema:', migrationError);
+      logger.error('Migration failed, this will cause API errors:', migrationError);
+      
+      // In production, we should fail if migrations don't work
+      if (process.env.NODE_ENV === 'production') {
+        logger.error('Exiting due to migration failure in production');
+        process.exit(1);
+      } else {
+        logger.warn('Continuing in development mode despite migration failure');
+      }
     }
 
     // Start server

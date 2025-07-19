@@ -3,7 +3,7 @@ services:
     name: carwash-backend
     env: node
     plan: starter
-    buildCommand: cd backend && npm install && npm run build
+    buildCommand: cd backend && npm install && npm run migrate:manual && npm run build
     startCommand: cd backend && npm start
     envVars:
       - key: NODE_ENV
