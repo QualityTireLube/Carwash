@@ -11,6 +11,12 @@ async function handleResponse(response: Response) {
 
 // Helper function to make API requests with retry logic
 async function apiRequest(url: string, options: RequestInit = {}, retries = 2): Promise<any> {
+  // Check if we're in production and don't have a proper API URL
+  if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production' && !process.env.NEXT_PUBLIC_API_URL) {
+    console.warn('No API URL configured in production. Please set NEXT_PUBLIC_API_URL environment variable.');
+    throw new Error('API not configured');
+  }
+
   try {
     const response = await fetch(url, {
       ...options,

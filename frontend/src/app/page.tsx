@@ -26,6 +26,18 @@ export default function Dashboard() {
     // Fetch dashboard stats
     const fetchStats = async () => {
       try {
+        // Check if we have a proper API URL in production
+        if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production' && !process.env.NEXT_PUBLIC_API_URL) {
+          console.warn('No API URL configured. Please set NEXT_PUBLIC_API_URL environment variable.');
+          setStats({
+            totalCustomers: 0,
+            activeMemberships: 0,
+            totalWashTypes: 0,
+            systemStatus: 'offline'
+          });
+          return;
+        }
+
         const [customersRes, washTypesRes, statusRes] = await Promise.allSettled([
           getCustomers(),
           getWashTypes(),
