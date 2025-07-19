@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Users, Settings, Zap, Activity } from 'lucide-react'
 import Link from 'next/link'
 import WashButtons from '@/components/WashButtons'
+import LoadingSpinner from '@/components/LoadingSpinner'
 import { getCustomers, getWashTypes, testConnection } from '@/utils/api'
 
 interface DashboardStats {

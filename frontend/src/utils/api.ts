@@ -1,50 +1,83 @@
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
 
+// Helper function to handle API responses
+async function handleResponse(response: Response) {
+  if (!response.ok) {
+    const errorText = await response.text();
+    throw new Error(`API Error: ${response.status} - ${errorText}`);
+  }
+  return response.json();
+}
+
+// Helper function to make API requests with retry logic
+async function apiRequest(url: string, options: RequestInit = {}, retries = 2): Promise<any> {
+  try {
+    const response = await fetch(url, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options.headers,
+      },
+    });
+    return await handleResponse(response);
+  } catch (error) {
+    if (retries > 0) {
+      console.warn(`API request failed, retrying... (${retries} retries left)`);
+      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+      return apiRequest(url, options, retries - 1);
+    }
+    throw error;
+  }
+}
+
 export async function triggerRelay(relayId: number): Promise<string> {
-  const res = await fetch(`${API_BASE_URL}/api/trigger/${relayId}`, { 
+  const response = await apiRequest(`${API_BASE_URL}/api/trigger/${relayId}`, { 
     method: 'POST' 
   });
-  return await res.text();
+  return response.message || 'Relay triggered successfully';
 }
 
 export async function getSystemStatus() {
-  const res = await fetch(`${API_BASE_URL}/api/trigger/status`);
-  return await res.json();
+  return await apiRequest(`${API_BASE_URL}/api/trigger/status`);
 }
 
 export async function testConnection() {
-  const res = await fetch(`${API_BASE_URL}/api/trigger/test`);
-  return await res.json();
+  try {
+    return await apiRequest(`${API_BASE_URL}/api/trigger/test`);
+  } catch (error) {
+    console.warn('ESP32 connection test failed:', error);
+    return { success: false, error: 'ESP32 not reachable' };
+  }
 }
 
 export async function getCustomers() {
-  const res = await fetch(`${API_BASE_URL}/api/customers`);
-  return await res.json();
+  try {
+    return await apiRequest(`${API_BASE_URL}/api/customers`);
+  } catch (error) {
+    console.error('Error fetching customers:', error);
+    return { customers: [] };
+  }
 }
 
 export async function getWashTypes() {
-  const res = await fetch(`${API_BASE_URL}/api/wash-types`);
-  return await res.json();
+  try {
+    return await apiRequest(`${API_BASE_URL}/api/wash-types`);
+  } catch (error) {
+    console.error('Error fetching wash types:', error);
+    return { washTypes: [] };
+  }
 }
 
 export async function createCustomer(customerData: any) {
-  const res = await fetch(`${API_BASE_URL}/api/customers`, {
+  return await apiRequest(`${API_BASE_URL}/api/customers`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     body: JSON.stringify(customerData),
   });
-  return await res.json();
 }
 
 export async function createWashType(washTypeData: any) {
-  const res = await fetch(`${API_BASE_URL}/api/wash-types`, {
+  return await apiRequest(`${API_BASE_URL}/api/wash-types`, {
     method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
     body: JSON.stringify(washTypeData),
   });
-  return await res.json();
 } 
