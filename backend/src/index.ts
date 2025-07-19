@@ -45,13 +45,19 @@ const corsOptions = {
       process.env.CORS_ORIGIN
     ].filter(Boolean) as string[];
     
-    // Allow any Vercel app URL for this project
-    const isVercelApp = origin.includes('qualitywash') && origin.endsWith('.vercel.app');
+    // Allow any Vercel app URL for this project (more permissive matching)
+    const isVercelApp = origin.endsWith('.vercel.app') && (
+      origin.includes('qualitywash') || 
+      origin.includes('stephen-villavasos-projects')
+    );
+    
+    // Log the origin for debugging
+    logger.info('CORS request from origin:', { origin, isVercelApp, allowedOrigins });
     
     if (allowedOrigins.includes(origin) || isVercelApp) {
       callback(null, true);
     } else {
-      console.log('CORS blocked origin:', origin);
+      logger.warn('CORS blocked origin:', { origin });
       callback(new Error('Not allowed by CORS'));
     }
   },
