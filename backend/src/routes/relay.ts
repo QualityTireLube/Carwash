@@ -83,18 +83,20 @@ router.get('/status', async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-    logger.error('Error fetching relay status:', error);
+    logger.debug('Error fetching relay status (expected if ESP32 is offline):', error);
     
     if (axios.isAxiosError(error)) {
       if (error.code === 'ECONNREFUSED') {
         return res.status(503).json({ 
-          error: 'ESP32 not reachable. Please check connection.' 
+          error: 'ESP32 not reachable. Please check connection.',
+          message: 'ESP32 is offline or not connected to the network'
         });
       }
     }
 
-    return res.status(500).json({ 
-      error: 'Failed to fetch relay status',
+    return res.status(503).json({ 
+      error: 'ESP32 not reachable',
+      message: 'ESP32 is offline or not connected to the network',
       details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
     });
   }
@@ -115,11 +117,13 @@ router.get('/test', async (req: Request, res: Response) => {
     });
 
   } catch (error) {
-    logger.error('ESP32 connection test failed:', error);
+    // Don't log this as an error since ESP32 might not be running
+    logger.debug('ESP32 connection test failed (expected if ESP32 is offline):', error);
     
     return res.status(503).json({
       success: false,
       error: 'ESP32 not reachable',
+      message: 'ESP32 is offline or not connected to the network',
       details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
     });
   }
