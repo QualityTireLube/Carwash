@@ -257,7 +257,7 @@ export default function StartWashPage() {
                       <div className="flex items-center space-x-4">
                         <div className="flex items-center">
                           <DollarSign className="h-4 w-4 text-gray-400 mr-1" />
-                          <span className="font-medium">${washType.price.toFixed(2)}</span>
+                          <span className="font-medium">${washType.price && !isNaN(Number(washType.price)) ? Number(washType.price).toFixed(2) : '0.00'}</span>
                         </div>
                         <div className="flex items-center">
                           <Clock className="h-4 w-4 text-gray-400 mr-1" />
@@ -297,7 +297,7 @@ export default function StartWashPage() {
                   <div>
                     <p className="text-sm font-medium">{selectedWashType.name}</p>
                     <p className="text-sm text-gray-600">
-                      ${selectedWashType.price.toFixed(2)} • {Math.floor(selectedWashType.duration / 60)}:{(selectedWashType.duration % 60).toString().padStart(2, '0')} • Relay {selectedWashType.relayId}
+                      ${selectedWashType.price && !isNaN(Number(selectedWashType.price)) ? Number(selectedWashType.price).toFixed(2) : '0.00'} • {Math.floor(selectedWashType.duration / 60)}:{(selectedWashType.duration % 60).toString().padStart(2, '0')} • Relay {selectedWashType.relayId}
                     </p>
                   </div>
                 ) : (

@@ -324,7 +324,7 @@ export default function WashSessionsPage() {
                         {formatDuration(session.washType.duration)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        ${session.washType.price.toFixed(2)}
+                        ${session.washType.price && !isNaN(Number(session.washType.price)) ? Number(session.washType.price).toFixed(2) : '0.00'}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {session.relayId}

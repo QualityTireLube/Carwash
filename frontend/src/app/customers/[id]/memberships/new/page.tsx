@@ -185,7 +185,7 @@ export default function NewMembershipPage() {
                 <option value="">Select a wash type</option>
                 {washTypes.map((washType) => (
                   <option key={washType.id} value={washType.id}>
-                    {washType.name} - ${washType.price.toFixed(2)}
+                    {washType.name} - ${washType.price && !isNaN(Number(washType.price)) ? Number(washType.price).toFixed(2) : '0.00'}
                   </option>
                 ))}
               </select>
@@ -252,7 +252,7 @@ export default function NewMembershipPage() {
                   value={formData.price}
                   onChange={handleChange}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  placeholder={selectedWashType ? selectedWashType.price.toFixed(2) : "0.00"}
+                  placeholder={selectedWashType && selectedWashType.price && !isNaN(Number(selectedWashType.price)) ? Number(selectedWashType.price).toFixed(2) : "0.00"}
                 />
                 <p className="text-xs text-gray-500 mt-1">
                   Leave empty to use wash type default price

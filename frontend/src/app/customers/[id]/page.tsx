@@ -338,7 +338,7 @@ export default function CustomerDetailPage() {
                         <div>
                           <span className="text-gray-500">Price:</span>
                           <span className="ml-1 font-medium text-gray-900">
-                            ${membership.price?.toFixed(2) || 'N/A'}/{membership.billingCycle}
+                            ${membership.price && !isNaN(Number(membership.price)) ? Number(membership.price).toFixed(2) : 'N/A'}/{membership.billingCycle}
                           </span>
                         </div>
                         <div>
@@ -435,7 +435,7 @@ export default function CustomerDetailPage() {
                             </div>
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            ${session.washType.price.toFixed(2)}
+                            ${session.washType.price && !isNaN(Number(session.washType.price)) ? Number(session.washType.price).toFixed(2) : '0.00'}
                           </td>
                           <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                             {session.relayId}

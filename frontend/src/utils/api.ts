@@ -249,3 +249,11 @@ export async function getMembership(membershipId: string) {
     throw error;
   }
 } 
+
+// Utility function to safely format price values
+export const formatPrice = (price: any): string => {
+  if (price && !isNaN(Number(price))) {
+    return Number(price).toFixed(2);
+  }
+  return '0.00';
+}; 

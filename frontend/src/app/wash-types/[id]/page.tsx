@@ -230,7 +230,7 @@ export default function WashTypeDetailPage() {
                     <DollarSign className="h-4 w-4 mr-1" />
                     Price
                   </label>
-                  <p className="text-2xl font-bold text-gray-900">${washType.price.toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-gray-900">${washType.price && !isNaN(Number(washType.price)) ? Number(washType.price).toFixed(2) : '0.00'}</p>
                 </div>
 
                 <div>
