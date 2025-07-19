@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "migrate": "node dist/database/migrate.js",
     "migrate:manual": "npx ts-node src/database/run-migrations-manual.ts",
+    "migrate:js": "node src/database/run-migrations-manual.js",
     "add-test-data": "npx ts-node src/database/add-test-data.ts",
     "test": "jest",
     "lint": "eslint src/**/*.ts",

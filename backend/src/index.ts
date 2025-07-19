@@ -7,7 +7,7 @@ import rateLimit from 'express-rate-limit';
 import { connectDatabase } from './config/database';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
-import { runMigrations } from './database/migrate';
+// Import removed - using manual migration instead
 import { db } from './config/database'; // Added import for db
 
 // Routes
@@ -117,19 +117,18 @@ const startServer = async () => {
     await connectDatabase();
     logger.info('Database connected successfully');
 
-    // Run migrations - make this more robust
+    // Check if tables exist - migrations should be run separately
     try {
-      await runMigrations();
-      logger.info('Database migrations completed successfully');
-    } catch (migrationError) {
-      logger.error('Migration failed, this will cause API errors:', migrationError);
-      
-      // In production, we should fail if migrations don't work
+      await db.query('SELECT 1 FROM customers LIMIT 1');
+      await db.query('SELECT 1 FROM wash_types LIMIT 1');
+      logger.info('Database tables verified successfully');
+    } catch (tableError) {
+      logger.error('Database tables missing. Please run: npm run migrate:manual');
       if (process.env.NODE_ENV === 'production') {
-        logger.error('Exiting due to migration failure in production');
+        logger.error('Exiting due to missing database tables in production');
         process.exit(1);
       } else {
-        logger.warn('Continuing in development mode despite migration failure');
+        logger.warn('Continuing in development mode despite missing tables');
       }
     }
 
