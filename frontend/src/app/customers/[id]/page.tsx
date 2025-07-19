@@ -1,10 +1,10 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ArrowLeft, User, Mail, Phone, Calendar, Edit, Trash2, Activity, AlertTriangle } from 'lucide-react'
+import { ArrowLeft, User, Mail, Phone, Calendar, Edit, Trash2, Activity, AlertTriangle, CreditCard, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { getCustomer, deleteCustomer, getCustomerWashSessions } from '@/utils/api'
+import { getCustomer, deleteCustomer, getCustomerWashSessions, getCustomerMemberships } from '@/utils/api'
 
 interface Customer {
   id: string
@@ -34,6 +34,25 @@ interface WashSession {
   }
 }
 
+interface Membership {
+  id: string
+  customerId: string
+  washTypeId: string
+  status: string
+  startDate: string
+  endDate?: string
+  billingCycle: string
+  price: number
+  notes?: string
+  createdAt: string
+  washType: {
+    name: string
+    description: string
+    duration: number
+    relayId: number
+  }
+}
+
 export default function CustomerDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -41,6 +60,7 @@ export default function CustomerDetailPage() {
 
   const [customer, setCustomer] = useState<Customer | null>(null)
   const [washSessions, setWashSessions] = useState<WashSession[]>([])
+  const [memberships, setMemberships] = useState<Membership[]>([])
   const [loading, setLoading] = useState(true)
   const [deleting, setDeleting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -54,13 +74,15 @@ export default function CustomerDetailPage() {
   const fetchCustomerData = async () => {
     try {
       setLoading(true)
-      const [customerRes, sessionsRes] = await Promise.all([
+      const [customerRes, sessionsRes, membershipsRes] = await Promise.all([
         getCustomer(customerId),
-        getCustomerWashSessions(customerId, 20)
+        getCustomerWashSessions(customerId, 20),
+        getCustomerMemberships(customerId)
       ])
       
       setCustomer(customerRes.customer)
       setWashSessions(sessionsRes.sessions || [])
+      setMemberships(membershipsRes.memberships || [])
     } catch (error) {
       console.error('Error fetching customer data:', error)
       setError('Failed to load customer data')
@@ -196,7 +218,7 @@ export default function CustomerDetailPage() {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           
           {/* Customer Information */}
-          <div className="lg:col-span-1">
+          <div className="lg:col-span-1 space-y-6">
             <div className="card p-6">
               <div className="flex items-center mb-6">
                 <div className="bg-blue-500 rounded-full p-3 mr-4">
@@ -263,6 +285,81 @@ export default function CustomerDetailPage() {
                   </div>
                 )}
               </div>
+            </div>
+
+            {/* Customer Memberships */}
+            <div className="card p-6">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center">
+                  <div className="bg-green-500 rounded-full p-3 mr-4">
+                    <CreditCard className="h-6 w-6 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-semibold text-gray-900">Memberships</h2>
+                    <p className="text-sm text-gray-600">Active wash type memberships</p>
+                  </div>
+                </div>
+                <Link 
+                  href={`/customers/${customerId}/memberships/new`}
+                  className="btn btn-primary btn-sm"
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Membership
+                </Link>
+              </div>
+
+              {memberships.length === 0 ? (
+                <div className="text-center py-6">
+                  <CreditCard className="h-8 w-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-sm text-gray-500 mb-3">No memberships yet</p>
+                  <Link 
+                    href={`/customers/${customerId}/memberships/new`}
+                    className="btn btn-primary btn-sm"
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add First Membership
+                  </Link>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {memberships.map((membership) => (
+                    <div key={membership.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex justify-between items-start mb-2">
+                        <div>
+                          <h3 className="font-medium text-gray-900">{membership.washType.name}</h3>
+                          <p className="text-sm text-gray-600">{membership.washType.description}</p>
+                        </div>
+                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getMembershipStatusColor(membership.status)}`}>
+                          {membership.status}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 gap-4 text-sm">
+                        <div>
+                          <span className="text-gray-500">Price:</span>
+                          <span className="ml-1 font-medium text-gray-900">
+                            ${membership.price?.toFixed(2) || 'N/A'}/{membership.billingCycle}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500">Started:</span>
+                          <span className="ml-1 text-gray-900">
+                            {new Date(membership.startDate).toLocaleDateString()}
+                          </span>
+                        </div>
+                        {membership.endDate && (
+                          <div className="col-span-2">
+                            <span className="text-gray-500">Ends:</span>
+                            <span className="ml-1 text-gray-900">
+                              {new Date(membership.endDate).toLocaleDateString()}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

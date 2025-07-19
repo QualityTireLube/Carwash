@@ -187,4 +187,65 @@ export async function getCustomerWashSessions(customerId: string, limit?: number
     console.error('Error fetching customer wash sessions:', error);
     return { sessions: [] };
   }
+}
+
+// Customer Memberships API
+export async function getCustomerMemberships(customerId: string) {
+  try {
+    return await apiRequest(`${API_BASE_URL}/api/memberships/customer/${customerId}`);
+  } catch (error) {
+    console.error('Error fetching customer memberships:', error);
+    return { memberships: [] };
+  }
+}
+
+export async function getWashTypeMemberships(washTypeId: string) {
+  try {
+    return await apiRequest(`${API_BASE_URL}/api/memberships/wash-type/${washTypeId}`);
+  } catch (error) {
+    console.error('Error fetching wash type memberships:', error);
+    return { memberships: [] };
+  }
+}
+
+export async function createMembership(membershipData: {
+  customerId: string;
+  washTypeId: string;
+  status?: string;
+  billingCycle?: string;
+  price?: number;
+  endDate?: string;
+  notes?: string;
+}) {
+  return await apiRequest(`${API_BASE_URL}/api/memberships`, {
+    method: 'POST',
+    body: JSON.stringify(membershipData),
+  });
+}
+
+export async function updateMembership(membershipId: string, updateData: {
+  status?: string;
+  endDate?: string;
+  notes?: string;
+  price?: number;
+}) {
+  return await apiRequest(`${API_BASE_URL}/api/memberships/${membershipId}`, {
+    method: 'PUT',
+    body: JSON.stringify(updateData),
+  });
+}
+
+export async function deleteMembership(membershipId: string) {
+  return await apiRequest(`${API_BASE_URL}/api/memberships/${membershipId}`, {
+    method: 'DELETE',
+  });
+}
+
+export async function getMembership(membershipId: string) {
+  try {
+    return await apiRequest(`${API_BASE_URL}/api/memberships/${membershipId}`);
+  } catch (error) {
+    console.error('Error fetching membership:', error);
+    throw error;
+  }
 } 

@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { ArrowLeft, User, Car, Clock, DollarSign, Zap, CheckCircle } from 'lucide-react'
+import { ArrowLeft, User, Car, Clock, DollarSign, Zap, CheckCircle, CreditCard } from 'lucide-react'
 import Link from 'next/link'
-import { getCustomers, getWashTypes, startWashSession } from '@/utils/api'
+import { getCustomers, getWashTypes, startWashSession, getCustomerMemberships } from '@/utils/api'
 
 interface Customer {
   id: string
@@ -23,9 +23,19 @@ interface WashType {
   isActive: boolean
 }
 
+interface Membership {
+  id: string
+  washTypeId: string
+  status: string
+  washType: {
+    name: string
+  }
+}
+
 export default function StartWashPage() {
   const [customers, setCustomers] = useState<Customer[]>([])
   const [washTypes, setWashTypes] = useState<WashType[]>([])
+  const [customerMemberships, setCustomerMemberships] = useState<Membership[]>([])
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null)
   const [selectedWashType, setSelectedWashType] = useState<WashType | null>(null)
   const [customerSearch, setCustomerSearch] = useState('')
@@ -56,6 +66,25 @@ export default function StartWashPage() {
     customer.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
     customer.email.toLowerCase().includes(customerSearch.toLowerCase())
   )
+
+  const selectCustomer = async (customer: Customer) => {
+    setSelectedCustomer(customer)
+    setSelectedWashType(null) // Reset wash type when customer changes
+    
+    try {
+      const membershipsRes = await getCustomerMemberships(customer.id)
+      setCustomerMemberships(membershipsRes.memberships || [])
+    } catch (error) {
+      console.error('Error fetching customer memberships:', error)
+      setCustomerMemberships([])
+    }
+  }
+
+  const hasMembership = (washTypeId: string) => {
+    return customerMemberships.find(
+      membership => membership.washTypeId === washTypeId && membership.status === 'active'
+    )
+  }
 
   const handleStartWash = async () => {
     if (!selectedCustomer || !selectedWashType) {
@@ -156,7 +185,7 @@ export default function StartWashPage() {
                 filteredCustomers.map((customer) => (
                   <div
                     key={customer.id}
-                    onClick={() => setSelectedCustomer(customer)}
+                    onClick={() => selectCustomer(customer)}
                     className={`p-3 border rounded-lg cursor-pointer transition-colors ${
                       selectedCustomer?.id === customer.id
                         ? 'border-blue-500 bg-blue-50'
@@ -207,7 +236,15 @@ export default function StartWashPage() {
                     }`}
                   >
                     <div className="flex justify-between items-start mb-2">
-                      <h3 className="font-medium text-gray-900">{washType.name}</h3>
+                      <div className="flex items-center space-x-2">
+                        <h3 className="font-medium text-gray-900">{washType.name}</h3>
+                        {selectedCustomer && hasMembership(washType.id) && (
+                          <span className="inline-flex items-center px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                            <CreditCard className="h-3 w-3 mr-1" />
+                            Member
+                          </span>
+                        )}
+                      </div>
                       <div className="flex items-center space-x-2">
                         <span className="text-sm text-gray-500">Relay {washType.relayId}</span>
                         <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
