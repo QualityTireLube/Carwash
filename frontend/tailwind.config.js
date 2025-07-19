@@ -32,6 +32,8 @@ module.exports = {
           800: '#1f2937',
           900: '#111827',
         },
+        ring: '#3b82f6', // Customize this to your desired ring color
+        background: '#ffffff', // Ensure this exists if you use `ring-offset-background`
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],
