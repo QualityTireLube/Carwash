@@ -33,7 +33,7 @@ const corsOptions = {
       'https://qualitywash.vercel.app',
       'https://qualitywash.vercel.app/',
       process.env.CORS_ORIGIN
-    ].filter(Boolean);
+    ].filter(Boolean) as string[];
     
     if (allowedOrigins.includes(origin)) {
       callback(null, true);
