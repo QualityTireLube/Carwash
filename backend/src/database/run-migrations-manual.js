@@ -85,6 +85,25 @@ async function runMigrationsManual() {
     `);
     logger.info('✓ Wash sessions table created');
 
+    // Create customer_memberships table
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS customer_memberships (
+          id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+          customer_id UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
+          wash_type_id UUID NOT NULL REFERENCES wash_types(id) ON DELETE CASCADE,
+          status VARCHAR(20) DEFAULT 'active' CHECK (status IN ('active', 'inactive', 'expired', 'suspended')),
+          start_date TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          end_date TIMESTAMP WITH TIME ZONE,
+          billing_cycle VARCHAR(20) DEFAULT 'monthly' CHECK (billing_cycle IN ('monthly', 'quarterly', 'annual', 'lifetime')),
+          price DECIMAL(10,2),
+          stripe_subscription_id VARCHAR(255),
+          notes TEXT,
+          created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+          updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      )
+    `);
+    logger.info('✓ Customer memberships table created');
+
     // Create indexes
     await pool.query('CREATE INDEX IF NOT EXISTS idx_customers_email ON customers(email)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_customers_rfid_tag ON customers(rfid_tag)');
@@ -93,7 +112,41 @@ async function runMigrationsManual() {
     await pool.query('CREATE INDEX IF NOT EXISTS idx_wash_types_active ON wash_types(is_active)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_wash_sessions_customer_id ON wash_sessions(customer_id)');
     await pool.query('CREATE INDEX IF NOT EXISTS idx_wash_sessions_started_at ON wash_sessions(started_at)');
+    
+    // Customer memberships indexes
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_customer_memberships_customer_id ON customer_memberships(customer_id)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_customer_memberships_wash_type_id ON customer_memberships(wash_type_id)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_customer_memberships_status ON customer_memberships(status)');
+    await pool.query('CREATE INDEX IF NOT EXISTS idx_customer_memberships_dates ON customer_memberships(start_date, end_date)');
+    
+    // Unique constraint to prevent duplicate active memberships
+    await pool.query(`
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_customer_memberships_unique_active 
+      ON customer_memberships(customer_id, wash_type_id) 
+      WHERE status = 'active'
+    `);
+    
     logger.info('✓ Indexes created');
+
+    // Create trigger function for customer_memberships updated_at
+    await pool.query(`
+      CREATE OR REPLACE FUNCTION update_customer_memberships_updated_at()
+      RETURNS TRIGGER AS $$
+      BEGIN
+          NEW.updated_at = NOW();
+          RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql
+    `);
+    
+    await pool.query(`
+      DROP TRIGGER IF EXISTS trigger_update_customer_memberships_updated_at ON customer_memberships;
+      CREATE TRIGGER trigger_update_customer_memberships_updated_at
+          BEFORE UPDATE ON customer_memberships
+          FOR EACH ROW
+          EXECUTE FUNCTION update_customer_memberships_updated_at()
+    `);
+    logger.info('✓ Customer memberships triggers created');
 
     // Insert default wash types
     await pool.query(`
@@ -111,8 +164,9 @@ async function runMigrationsManual() {
     // Test the tables
     const customersResult = await pool.query('SELECT COUNT(*) FROM customers');
     const washTypesResult = await pool.query('SELECT COUNT(*) FROM wash_types');
+    const membershipResult = await pool.query('SELECT COUNT(*) FROM customer_memberships');
     
-    logger.info(`✓ Tables verified - Customers: ${customersResult.rows[0].count}, Wash Types: ${washTypesResult.rows[0].count}`);
+    logger.info(`✓ Tables verified - Customers: ${customersResult.rows[0].count}, Wash Types: ${washTypesResult.rows[0].count}, Memberships: ${membershipResult.rows[0].count}`);
     
   } catch (error) {
     logger.error('Manual migration failed:', error);
