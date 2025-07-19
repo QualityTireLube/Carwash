@@ -8,13 +8,30 @@ const logger = {
 };
 
 async function runMigrationsManual() {
+  // Log database connection info (without credentials)
+  const dbUrl = process.env.DATABASE_URL;
+  if (!dbUrl) {
+    throw new Error('DATABASE_URL environment variable is required');
+  }
+  
+  const maskedUrl = dbUrl.replace(/(:\/\/)([^:]+):([^@]+)@/, '$1****:****@');
+  logger.info('Migration connecting to database:', { url: maskedUrl });
+
   const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
     ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+    max: 5,
+    idleTimeoutMillis: 30000,
+    connectionTimeoutMillis: 10000,
   });
 
   try {
     logger.info('Starting manual database migrations...');
+    
+    // Test connection first
+    logger.info('Testing database connection...');
+    await pool.query('SELECT NOW()');
+    logger.info('✓ Database connection successful');
     
     // Enable UUID extension
     await pool.query('CREATE EXTENSION IF NOT EXISTS "uuid-ossp"');

@@ -124,8 +124,10 @@ const startServer = async () => {
       logger.info('Database tables verified successfully');
     } catch (tableError) {
       logger.error('Database tables missing. Please run: npm run migrate:manual');
+      logger.error('Table check error details:', tableError);
       if (process.env.NODE_ENV === 'production') {
         logger.error('Exiting due to missing database tables in production');
+        logger.info('Note: If this is a fresh deployment, migrations should run automatically');
         process.exit(1);
       } else {
         logger.warn('Continuing in development mode despite missing tables');
