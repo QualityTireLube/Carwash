@@ -10,7 +10,8 @@ export default function NewWashTypePage() {
     description: '',
     price: '',
     duration: '',
-    is_active: true
+    relayId: '',  // Add missing relayId field that backend expects
+    isActive: true  // Changed from is_active to isActive
   })
   const [loading, setLoading] = useState(false)
 
@@ -28,7 +29,8 @@ export default function NewWashTypePage() {
         body: JSON.stringify({
           ...formData,
           price: parseFloat(formData.price),
-          duration: parseInt(formData.duration)
+          duration: parseInt(formData.duration),
+          relayId: parseInt(formData.relayId)
         }),
       })
 
@@ -149,17 +151,38 @@ export default function NewWashTypePage() {
               />
             </div>
 
+            {/* Relay ID Field */}
+            <div>
+              <label htmlFor="relayId" className="block text-sm font-medium text-gray-700 mb-2">
+                Relay ID *
+              </label>
+              <select
+                id="relayId"
+                name="relayId"
+                required
+                value={formData.relayId}
+                onChange={handleChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              >
+                <option value="">Select a relay (1-4)</option>
+                <option value="1">Relay 1</option>
+                <option value="2">Relay 2</option>
+                <option value="3">Relay 3</option>
+                <option value="4">Relay 4</option>
+              </select>
+            </div>
+
             {/* Active Status */}
             <div className="flex items-center">
               <input
                 type="checkbox"
-                id="is_active"
-                name="is_active"
-                checked={formData.is_active}
+                id="isActive"
+                name="isActive"
+                checked={formData.isActive}
                 onChange={handleChange}
                 className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
               />
-              <label htmlFor="is_active" className="ml-2 block text-sm text-gray-900">
+              <label htmlFor="isActive" className="ml-2 block text-sm text-gray-900">
                 Active (available for customers)
               </label>
             </div>

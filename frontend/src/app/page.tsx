@@ -46,7 +46,7 @@ export default function Dashboard() {
 
         setStats({
           totalCustomers: customersRes.status === 'fulfilled' ? (customersRes.value.customers?.length || 0) : 0,
-          activeMemberships: customersRes.status === 'fulfilled' ? (customersRes.value.customers?.filter((c: any) => c.membership_status === 'active').length || 0) : 0,
+          activeMemberships: customersRes.status === 'fulfilled' ? (customersRes.value.customers?.filter((c: any) => c.membershipStatus === 'active').length || 0) : 0,
           totalWashTypes: washTypesRes.status === 'fulfilled' ? (washTypesRes.value.washTypes?.length || 0) : 0,
           systemStatus: statusRes.status === 'fulfilled' && statusRes.value.success ? 'online' : 'offline'
         })

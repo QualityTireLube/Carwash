@@ -10,8 +10,8 @@ interface Customer {
   name: string
   email: string
   phone: string
-  membership_status: string
-  created_at: string
+  membershipStatus: string  // Changed from membership_status to membershipStatus
+  createdAt: string  // Changed from created_at to createdAt
 }
 
 export default function CustomersPage() {
@@ -135,15 +135,15 @@ export default function CustomersPage() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${
-                          customer.membership_status === 'active' 
+                          customer.membershipStatus === 'active' 
                             ? 'bg-green-100 text-green-800' 
                             : 'bg-gray-100 text-gray-800'
                         }`}>
-                          {customer.membership_status}
+                          {customer.membershipStatus}
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {new Date(customer.created_at).toLocaleDateString()}
+                        {new Date(customer.createdAt).toLocaleDateString()}
                       </td>
                     </tr>
                   ))}
