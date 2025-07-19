@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import { ArrowLeft, User, Car, Clock, DollarSign, Zap, CheckCircle, CreditCard } from 'lucide-react'
 import Link from 'next/link'
-import { getCustomers, getWashTypes, startWashSession, getCustomerMemberships } from '@/utils/api'
+import { getCustomers, getWashTypes, getCustomerMemberships, startWashSession, testConnection } from '@/utils/api'
 
 interface Customer {
   id: string
@@ -42,10 +42,21 @@ export default function StartWashPage() {
   const [loading, setLoading] = useState(false)
   const [washStarted, setWashStarted] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [espOnline, setEspOnline] = useState<boolean | null>(null)
 
   useEffect(() => {
     fetchData()
+    checkEspStatus()
   }, [])
+
+  const checkEspStatus = async () => {
+    try {
+      const status = await testConnection()
+      setEspOnline(status.success)
+    } catch (error) {
+      setEspOnline(false)
+    }
+  }
 
   const fetchData = async () => {
     try {
@@ -92,6 +103,10 @@ export default function StartWashPage() {
       return
     }
 
+    if (!espOnline) {
+      setError('ESP32 controller is offline. The wash session will be recorded but the relay will not trigger automatically.')
+    }
+
     setLoading(true)
     setError(null)
 
@@ -103,10 +118,14 @@ export default function StartWashPage() {
       )
 
       if (result.success) {
-        setWashStarted(true)
-        setTimeout(() => {
-          window.location.href = '/wash-sessions'
-        }, 3000)
+        if (!result.relayTriggered && result.relayError) {
+          setError(`Wash started but relay failed: ${result.relayError}`)
+        } else {
+          setWashStarted(true)
+          setTimeout(() => {
+            window.location.href = '/wash-sessions'
+          }, 3000)
+        }
       } else {
         setError(result.error || 'Failed to start wash')
       }
@@ -306,6 +325,13 @@ export default function StartWashPage() {
               </div>
             </div>
           </div>
+
+          {/* ESP32 Status Warning */}
+          {espOnline === false && (
+            <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg text-yellow-700 text-sm">
+              ⚠️ ESP32 controller is offline. Wash sessions can be started but relays will not trigger automatically.
+            </div>
+          )}
 
           {/* Error Message */}
           {error && (

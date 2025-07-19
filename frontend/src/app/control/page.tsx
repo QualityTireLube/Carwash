@@ -21,6 +21,7 @@ export default function ControlPanel() {
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null)
   const [loading, setLoading] = useState(false)
   const [lastTriggered, setLastTriggered] = useState<number | null>(null)
+  const [espOnline, setEspOnline] = useState<boolean>(true)
 
   useEffect(() => {
     fetchSystemStatus()
@@ -34,13 +35,24 @@ export default function ControlPanel() {
       if (response.ok) {
         const data = await response.json()
         setSystemStatus(data.status)
+        setEspOnline(true)
+      } else {
+        setEspOnline(false)
+        setSystemStatus(null)
       }
     } catch (error) {
-      console.error('Error fetching system status:', error)
+      console.debug('ESP32 status check failed (expected if hardware is offline):', error)
+      setEspOnline(false)
+      setSystemStatus(null)
     }
   }
 
   const triggerRelay = async (relayId: number) => {
+    if (!espOnline) {
+      alert('ESP32 controller is offline. Cannot trigger relays.')
+      return
+    }
+
     setLoading(true)
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trigger/${relayId}`, {
@@ -55,10 +67,12 @@ export default function ControlPanel() {
         setTimeout(() => setLastTriggered(null), 2000) // Clear after 2 seconds
         fetchSystemStatus() // Refresh status
       } else {
-        console.error('Failed to trigger relay')
+        const errorData = await response.json()
+        alert(`Failed to trigger relay: ${errorData.error || 'Unknown error'}`)
       }
     } catch (error) {
       console.error('Error triggering relay:', error)
+      alert('Failed to trigger relay. ESP32 may be offline.')
     } finally {
       setLoading(false)
     }
@@ -112,6 +126,23 @@ export default function ControlPanel() {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* ESP32 Status Banner */}
+        {!espOnline && (
+          <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-center">
+              <XCircle className="h-5 w-5 text-yellow-400 mr-3" />
+              <div>
+                <h3 className="text-sm font-medium text-yellow-800">
+                  ESP32 Controller Offline
+                </h3>
+                <p className="text-sm text-yellow-700 mt-1">
+                  The ESP32 hardware controller is not connected. Relay controls are disabled until connection is restored.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* System Status */}
         <div className="card p-6 mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">System Status</h2>
@@ -144,9 +175,9 @@ export default function ControlPanel() {
                     </div>
                     <button
                       onClick={() => triggerRelay(washType.id)}
-                      disabled={loading}
+                      disabled={loading || !espOnline}
                       className={`btn btn-primary btn-sm ${
-                        lastTriggered === washType.id ? 'bg-green-600' : ''
+                        lastTriggered === washType.id ? 'bg-green-600' : !espOnline ? 'bg-gray-400 cursor-not-allowed' : ''
                       }`}
                     >
                       {lastTriggered === washType.id ? (
@@ -183,9 +214,9 @@ export default function ControlPanel() {
                   <button
                     key={relayId}
                     onClick={() => triggerRelay(relayId)}
-                    disabled={loading}
+                    disabled={loading || !espOnline}
                     className={`btn btn-secondary btn-md ${
-                      lastTriggered === relayId ? 'bg-green-600 text-white' : ''
+                      lastTriggered === relayId ? 'bg-green-600 text-white' : !espOnline ? 'bg-gray-400 cursor-not-allowed' : ''
                     }`}
                   >
                     {lastTriggered === relayId ? (
@@ -201,9 +232,9 @@ export default function ControlPanel() {
               <div className="border-t pt-4">
                 <button
                   onClick={resetAll}
-                  disabled={loading}
+                  disabled={loading || !espOnline}
                   className={`btn btn-danger btn-md w-full ${
-                    lastTriggered === 5 ? 'bg-green-600' : ''
+                    lastTriggered === 5 ? 'bg-green-600' : !espOnline ? 'bg-gray-400 cursor-not-allowed' : ''
                   }`}
                 >
                   {lastTriggered === 5 ? (

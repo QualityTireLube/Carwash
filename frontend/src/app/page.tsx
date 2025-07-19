@@ -44,11 +44,13 @@ export default function Dashboard() {
           testConnection()
         ])
 
+        const espStatus = statusRes.status === 'fulfilled' && statusRes.value.success ? 'online' : 'offline';
+        
         setStats({
           totalCustomers: customersRes.status === 'fulfilled' ? (customersRes.value.customers?.length || 0) : 0,
           activeMemberships: customersRes.status === 'fulfilled' ? (customersRes.value.customers?.filter((c: any) => c.membershipStatus === 'active').length || 0) : 0,
           totalWashTypes: washTypesRes.status === 'fulfilled' ? (washTypesRes.value.washTypes?.length || 0) : 0,
-          systemStatus: statusRes.status === 'fulfilled' && statusRes.value.success ? 'online' : 'offline'
+          systemStatus: espStatus
         })
       } catch (error) {
         console.error('Error fetching stats:', error)
@@ -175,16 +177,21 @@ export default function Dashboard() {
             <h2 className="text-xl font-semibold text-gray-900 mb-4">System Status</h2>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-gray-600">ESP32 Connection</span>
-                <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                  stats.systemStatus === 'loading' 
-                    ? 'bg-gray-100 text-gray-800'
-                    : stats.systemStatus === 'online' 
-                    ? 'bg-green-100 text-green-800' 
-                    : 'bg-red-100 text-red-800'
-                }`}>
-                  {stats.systemStatus === 'loading' ? 'Checking...' : (stats.systemStatus === 'online' ? 'Connected' : 'Disconnected')}
-                </span>
+                <span className="text-gray-600">ESP32 Controller</span>
+                <div className="flex items-center space-x-2">
+                  <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                    stats.systemStatus === 'loading' 
+                      ? 'bg-gray-100 text-gray-800'
+                      : stats.systemStatus === 'online' 
+                      ? 'bg-green-100 text-green-800' 
+                      : 'bg-yellow-100 text-yellow-800'
+                  }`}>
+                    {stats.systemStatus === 'loading' ? 'Checking...' : (stats.systemStatus === 'online' ? 'Connected' : 'Offline')}
+                  </span>
+                  {stats.systemStatus === 'offline' && (
+                    <span className="text-xs text-gray-500" title="ESP32 hardware is not connected. Wash controls will not function.">ℹ️</span>
+                  )}
+                </div>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-gray-600">Database</span>

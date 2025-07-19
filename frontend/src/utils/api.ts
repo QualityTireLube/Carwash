@@ -37,22 +37,33 @@ async function apiRequest(url: string, options: RequestInit = {}, retries = 2): 
 }
 
 export async function triggerRelay(relayId: number): Promise<string> {
-  const response = await apiRequest(`${API_BASE_URL}/api/trigger/${relayId}`, { 
-    method: 'POST' 
-  });
-  return response.message || 'Relay triggered successfully';
+  try {
+    const response = await apiRequest(`${API_BASE_URL}/api/trigger/${relayId}`, { 
+      method: 'POST' 
+    });
+    return response.message || 'Relay triggered successfully';
+  } catch (error) {
+    console.warn('Relay trigger failed:', error);
+    throw new Error('Unable to trigger relay - ESP32 may be offline');
+  }
 }
 
 export async function getSystemStatus() {
-  return await apiRequest(`${API_BASE_URL}/api/trigger/status`);
+  try {
+    return await apiRequest(`${API_BASE_URL}/api/trigger/status`);
+  } catch (error) {
+    console.debug('ESP32 status check failed (expected if hardware is offline):', error);
+    return { success: false, error: 'ESP32 not reachable', offline: true };
+  }
 }
 
 export async function testConnection() {
   try {
     return await apiRequest(`${API_BASE_URL}/api/trigger/test`);
   } catch (error) {
-    console.warn('ESP32 connection test failed:', error);
-    return { success: false, error: 'ESP32 not reachable' };
+    // Handle ESP32 connectivity issues gracefully - this is expected when hardware is offline
+    console.debug('ESP32 connection test failed (expected if hardware is offline):', error);
+    return { success: false, error: 'ESP32 not reachable', offline: true };
   }
 }
 
