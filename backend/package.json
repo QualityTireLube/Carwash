@@ -12,7 +12,10 @@
     "migrate:manual": "npx ts-node src/database/run-migrations-manual.ts",
     "migrate:js": "node src/database/run-migrations-manual.js",
     "add-test-data": "npx ts-node src/database/add-test-data.ts",
-    "test": "jest",
+    "test": "NODE_ENV=test jest",
+    "test:watch": "NODE_ENV=test jest --watch",
+    "test:coverage": "NODE_ENV=test jest --coverage",
+    "test:integration": "NODE_ENV=test jest --testPathPattern=integration",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix"
   },
@@ -50,7 +53,9 @@
     "@typescript-eslint/eslint-plugin": "^6.10.0",
     "@typescript-eslint/parser": "^6.10.0",
     "jest": "^29.7.0",
-    "@types/jest": "^29.5.8"
+    "@types/jest": "^29.5.8",
+    "supertest": "^6.3.3",
+    "@types/supertest": "^2.0.16"
   },
   "engines": {
     "node": ">=18.0.0"
