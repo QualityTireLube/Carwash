@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Users, Plus, Search, Eye, Edit, Trash2 } from 'lucide-react'
+import { Users, Plus, Search, Edit, Trash2 } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { getCustomers, deleteCustomer } from '@/utils/api'
@@ -150,20 +150,33 @@ export default function CustomersPage() {
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
                   {filteredCustomers.map((customer) => (
-                    <tr key={customer.id} className="hover:bg-gray-50">
+                    <tr 
+                      key={customer.id} 
+                      className="hover:bg-gray-50 cursor-pointer transition-colors"
+                      onClick={() => router.push(`/customers/${customer.id}`)}
+                    >
                       <td 
-                        className="px-6 py-4 whitespace-nowrap cursor-pointer"
+                        className="px-6 py-4 whitespace-nowrap"
                         onClick={() => router.push(`/customers/${customer.id}`)}
                       >
-                        <div className="text-sm font-medium text-gray-900 hover:text-blue-600">{customer.name}</div>
+                        <div className="text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors">{customer.name}</div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td 
+                        className="px-6 py-4 whitespace-nowrap"
+                        onClick={() => router.push(`/customers/${customer.id}`)}
+                      >
                         <div className="text-sm text-gray-900">{customer.email}</div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td 
+                        className="px-6 py-4 whitespace-nowrap"
+                        onClick={() => router.push(`/customers/${customer.id}`)}
+                      >
                         <div className="text-sm text-gray-900">{customer.phone}</div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap">
+                      <td 
+                        className="px-6 py-4 whitespace-nowrap"
+                        onClick={() => router.push(`/customers/${customer.id}`)}
+                      >
                         <span className={`px-2 py-1 text-xs font-medium rounded-full ${
                           customer.membershipStatus === 'active' 
                             ? 'bg-green-100 text-green-800' 
@@ -174,22 +187,19 @@ export default function CustomersPage() {
                           {customer.membershipStatus}
                         </span>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                      <td 
+                        className="px-6 py-4 whitespace-nowrap text-sm text-gray-500"
+                        onClick={() => router.push(`/customers/${customer.id}`)}
+                      >
                         {new Date(customer.createdAt).toLocaleDateString()}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                        <div className="flex items-center space-x-2">
-                          <Link
-                            href={`/customers/${customer.id}`}
-                            className="text-blue-600 hover:text-blue-900 p-1"
-                            title="View Details"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Link>
+                        <div className="flex items-center justify-end space-x-2">
                           <Link
                             href={`/customers/${customer.id}/edit`}
-                            className="text-indigo-600 hover:text-indigo-900 p-1"
+                            className="text-indigo-600 hover:text-indigo-900 p-1 rounded transition-colors"
                             title="Edit Customer"
+                            onClick={(e) => e.stopPropagation()}
                           >
                             <Edit className="h-4 w-4" />
                           </Link>
@@ -199,7 +209,7 @@ export default function CustomersPage() {
                               handleDelete(customer)
                             }}
                             disabled={deleting === customer.id.toString()}
-                            className="text-red-600 hover:text-red-900 p-1 disabled:opacity-50"
+                            className="text-red-600 hover:text-red-900 p-1 rounded disabled:opacity-50 transition-colors"
                             title="Delete Customer"
                           >
                             {deleting === customer.id.toString() ? (
