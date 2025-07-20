@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react'
 import { ArrowLeft, User, Mail, Phone, Calendar, Edit, Trash2, Activity, AlertTriangle, CreditCard, Plus } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { getCustomer, deleteCustomer, getCustomerWashSessions, getCustomerMemberships } from '@/utils/api'
+import { getCustomer, deleteCustomer, getCustomerWashSessions, getCustomerMemberships, deleteMembership } from '@/utils/api'
 
 interface Customer {
   id: string
@@ -110,6 +110,24 @@ export default function CustomerDetailPage() {
       alert('Failed to delete customer. Please try again.')
     } finally {
       setDeleting(false)
+    }
+  }
+
+  const handleDeleteMembership = async (membership: Membership) => {
+    const confirmMessage = `Are you sure you want to delete this membership?\n\nWash Type: ${membership.washType.name}\nStatus: ${membership.status}\n\nThis action cannot be undone.`
+    
+    if (!confirm(confirmMessage)) {
+      return
+    }
+
+    try {
+      await deleteMembership(membership.id)
+      // Refresh the memberships list
+      const membershipsRes = await getCustomerMemberships(customerId)
+      setMemberships(membershipsRes.memberships || [])
+    } catch (error) {
+      console.error('Error deleting membership:', error)
+      alert('Failed to delete membership. Please try again.')
     }
   }
 
@@ -324,15 +342,40 @@ export default function CustomerDetailPage() {
               ) : (
                 <div className="space-y-3">
                   {memberships.map((membership) => (
-                    <div key={membership.id} className="border border-gray-200 rounded-lg p-4">
+                    <div key={membership.id} className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors">
                       <div className="flex justify-between items-start mb-2">
-                        <div>
-                          <h3 className="font-medium text-gray-900">{membership.washType.name}</h3>
+                        <div 
+                          className="cursor-pointer flex-1"
+                          onClick={() => router.push(`/customers/${customerId}/memberships/${membership.id}`)}
+                        >
+                          <h3 className="font-medium text-gray-900 hover:text-blue-600 transition-colors">{membership.washType.name}</h3>
                           <p className="text-sm text-gray-600">{membership.washType.description}</p>
                         </div>
-                        <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getMembershipStatusColor(membership.status)}`}>
-                          {membership.status}
-                        </span>
+                        <div className="flex items-center space-x-2">
+                          <span className={`inline-flex px-2 py-1 text-xs font-medium rounded-full ${getMembershipStatusColor(membership.status)}`}>
+                            {membership.status}
+                          </span>
+                          <div className="flex items-center space-x-1">
+                            <Link
+                              href={`/customers/${customerId}/memberships/${membership.id}/edit`}
+                              className="text-indigo-600 hover:text-indigo-900 p-1"
+                              title="Edit Membership"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </Link>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                handleDeleteMembership(membership)
+                              }}
+                              className="text-red-600 hover:text-red-900 p-1"
+                              title="Delete Membership"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
                       </div>
                       
                       <div className="grid grid-cols-2 gap-4 text-sm">
