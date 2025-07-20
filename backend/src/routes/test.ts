@@ -4,6 +4,51 @@ import { logger } from '../utils/logger';
 
 const router = Router();
 
+// Test database connection
+router.get('/db', async (req: Request, res: Response) => {
+  try {
+    const result = await db.query('SELECT NOW() as current_time');
+    res.json({ 
+      success: true, 
+      message: 'Database connected successfully',
+      timestamp: result.rows[0].current_time
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: 'Database connection failed',
+      details: (error as Error).message
+    });
+  }
+});
+
+// Check customer_memberships table schema
+router.get('/schema/customer-memberships', async (req: Request, res: Response) => {
+  try {
+    const result = await db.query(`
+      SELECT column_name, data_type, is_nullable 
+      FROM information_schema.columns 
+      WHERE table_name = 'customer_memberships' 
+      ORDER BY ordinal_position
+    `);
+    
+    const hasRfidColumn = result.rows.some((row: any) => row.column_name === 'rfid_tag');
+    
+    res.json({ 
+      success: true, 
+      columns: result.rows,
+      hasRfidColumn,
+      columnCount: result.rows.length
+    });
+  } catch (error) {
+    res.status(500).json({ 
+      success: false, 
+      error: 'Failed to check schema',
+      details: (error as Error).message
+    });
+  }
+});
+
 // Add test data endpoint
 router.post('/add-data', async (req: Request, res: Response) => {
   try {
