@@ -5,7 +5,12 @@ dotenv.config({ path: '.env.test' });
 
 // Set up test environment variables if not already set
 if (!process.env.DATABASE_URL) {
-  process.env.DATABASE_URL = 'postgresql://postgres:password@localhost:5432/carwash_test';
+  // Check if we're in Render CI environment
+  if (process.env.TEST_DATABASE_URL) {
+    process.env.DATABASE_URL = process.env.TEST_DATABASE_URL;
+  } else {
+    process.env.DATABASE_URL = 'postgresql://postgres:password@localhost:5432/carwash_test';
+  }
 }
 
 if (!process.env.JWT_SECRET) {

@@ -3,22 +3,29 @@ import { logger } from '../utils/logger';
 
 export default async function globalSetup() {
   try {
-    // Create a connection to postgres to create test database
-    const adminPool = new Pool({
-      connectionString: process.env.DATABASE_URL?.replace('/carwash_test', '/postgres'),
-      ssl: false,
-    });
+    // Check if we're in a managed environment (like Render) where DB already exists
+    const isManaged = process.env.RENDER || process.env.CI || process.env.TEST_DATABASE_URL;
+    
+    if (!isManaged) {
+      // Create a connection to postgres to create test database (local development only)
+      const adminPool = new Pool({
+        connectionString: process.env.DATABASE_URL?.replace('/carwash_test', '/postgres'),
+        ssl: false,
+      });
 
-    // Try to create test database (ignore if it already exists)
-    try {
-      await adminPool.query('CREATE DATABASE carwash_test');
-      logger.info('✓ Test database created');
-    } catch (error: any) {
-      if (error.code !== '42P04') { // Database already exists
-        logger.warn('Database creation warning:', error.message);
+      // Try to create test database (ignore if it already exists)
+      try {
+        await adminPool.query('CREATE DATABASE carwash_test');
+        logger.info('✓ Test database created');
+      } catch (error: any) {
+        if (error.code !== '42P04') { // Database already exists
+          logger.warn('Database creation warning:', error.message);
+        }
+      } finally {
+        await adminPool.end();
       }
-    } finally {
-      await adminPool.end();
+    } else {
+      logger.info('✓ Using managed database service');
     }
 
     // Connect to test database and run migrations

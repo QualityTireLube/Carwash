@@ -18,6 +18,7 @@ import customerMembershipRoutes from './routes/customerMemberships';
 import relayRoutes from './routes/relay';
 import stripeRoutes from './routes/stripe';
 import testRoutes from './routes/test';
+import testRunnerRoutes from './routes/testRunner';
 
 // Load environment variables
 dotenv.config();
@@ -111,6 +112,7 @@ app.use('/api/memberships', customerMembershipRoutes);
 app.use('/api/trigger', relayRoutes);
 app.use('/api/stripe', stripeRoutes);
 app.use('/api/test', testRoutes);
+app.use('/api/test-runner', testRunnerRoutes);
 
 // Error handling middleware
 app.use(errorHandler);

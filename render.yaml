@@ -1,15 +1,36 @@
 services:
+  # Test Database Service
+  - type: pgsql
+    name: carwash-test-db
+    databaseName: carwash_test
+    user: testuser
+    plan: starter
+
+  # Main Production Database Service  
+  - type: pgsql
+    name: carwash-db
+    databaseName: carwash_db
+    user: carwashuser
+    plan: starter
+
+  # Backend Web Service
   - type: web
     name: carwash-backend
     env: node
     plan: starter
-    buildCommand: cd backend && npm install && npm run build
+    buildCommand: cd backend && npm install && npm run test:ci && npm run build
     startCommand: cd backend && npm start
     envVars:
       - key: NODE_ENV
         value: production
       - key: DATABASE_URL
-        sync: false
+        fromDatabase:
+          name: carwash-db
+          property: connectionString
+      - key: TEST_DATABASE_URL
+        fromDatabase:
+          name: carwash-test-db
+          property: connectionString
       - key: STRIPE_SECRET_KEY
         sync: false
       - key: STRIPE_WEBHOOK_SECRET

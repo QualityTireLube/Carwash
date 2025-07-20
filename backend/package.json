@@ -16,6 +16,7 @@
     "test:watch": "NODE_ENV=test jest --watch",
     "test:coverage": "NODE_ENV=test jest --coverage",
     "test:integration": "NODE_ENV=test jest --testPathPattern=integration",
+    "test:ci": "NODE_ENV=test DATABASE_URL=$TEST_DATABASE_URL jest --testPathPattern=integration --verbose --forceExit",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix"
   },

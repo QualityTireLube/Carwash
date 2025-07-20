@@ -235,6 +235,30 @@ export async function createMembership(membershipData: {
   });
 }
 
+// Test Runner API functions
+export async function getTestSuites() {
+  return await apiRequest(`${API_BASE_URL}/api/test-runner/suites`);
+}
+
+export async function runAllTests() {
+  return await apiRequest(`${API_BASE_URL}/api/test-runner/run-all`, {
+    method: 'POST',
+  });
+}
+
+export async function runTestSuite(suiteId: string) {
+  return await apiRequest(`${API_BASE_URL}/api/test-runner/run-suite/${suiteId}`, {
+    method: 'POST',
+  });
+}
+
+export async function runSpecificTest(testName: string, suiteId?: string) {
+  return await apiRequest(`${API_BASE_URL}/api/test-runner/run-test`, {
+    method: 'POST',
+    body: JSON.stringify({ testName, suiteId }),
+  });
+}
+
 export async function updateMembership(membershipId: string, updateData: {
   status?: string;
   endDate?: string;

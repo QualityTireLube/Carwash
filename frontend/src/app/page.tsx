@@ -114,6 +114,13 @@ export default function Dashboard() {
             </div>
             <div className="flex space-x-4">
               <Link 
+                href="/settings"
+                className="btn btn-secondary btn-md"
+              >
+                <Settings className="h-4 w-4 mr-2" />
+                Settings
+              </Link>
+              <Link 
                 href="/control"
                 className="btn btn-primary btn-md"
               >
@@ -168,6 +175,12 @@ export default function Dashboard() {
                 className="btn btn-secondary btn-md w-full"
               >
                 Manual Control Panel
+              </Link>
+              <Link 
+                href="/settings"
+                className="btn btn-secondary btn-md w-full"
+              >
+                Settings & Testing
               </Link>
             </div>
           </div>
