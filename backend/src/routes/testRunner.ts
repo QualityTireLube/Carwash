@@ -131,7 +131,7 @@ async function runTests(testFile?: string, testPattern?: string): Promise<any> {
     const env = {
       ...process.env,
       NODE_ENV: 'test',
-      DATABASE_URL: process.env.TEST_DATABASE_URL || process.env.DATABASE_URL,
+      DATABASE_URL: process.env.TEST_DATABASE_URL || process.env.DATABASE_URL || 'postgresql://localhost:5432/postgres',
       JWT_SECRET: process.env.JWT_SECRET || 'test-jwt-secret'
     };
 
