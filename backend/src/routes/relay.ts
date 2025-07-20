@@ -24,11 +24,11 @@ router.post('/rfid', async (req: Request, res: Response) => {
 
     logger.info(`ESP32 RFID lookup request for tag: ${rfidTag}`);
 
-    // Look up active membership for customer with this RFID tag
+    // Look up active membership with this RFID tag
     const membershipResult = await db.query(`
       SELECT 
         cm.id as "membershipId",
-        c.rfid_tag as "rfidTag",
+        cm.rfid_tag as "rfidTag",
         cm.status as "membershipStatus",
         cm.customer_id as "customerId",
         c.name as "customerName",
@@ -37,10 +37,10 @@ router.post('/rfid', async (req: Request, res: Response) => {
         wt.relay_id as "relayId",
         wt.duration as "duration",
         wt.is_active as "washTypeActive"
-      FROM customers c
-      JOIN customer_memberships cm ON c.id = cm.customer_id
+      FROM customer_memberships cm
+      JOIN customers c ON cm.customer_id = c.id
       JOIN wash_types wt ON cm.wash_type_id = wt.id
-      WHERE c.rfid_tag = $1 
+      WHERE cm.rfid_tag = $1 
         AND cm.status = 'active'
         AND wt.is_active = true
       LIMIT 1
