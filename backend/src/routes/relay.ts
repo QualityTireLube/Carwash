@@ -25,6 +25,16 @@ let commandIdCounter = 1;
 const lastCommandTimes: { [relayId: number]: number } = {};
 const COMMAND_COOLDOWN = 2000; // 2 seconds between commands for same relay
 
+// ESP32 polling tracking
+let lastEsp32PollTime = 0;
+const ESP32_POLL_TIMEOUT = 10000; // Consider ESP32 offline if no poll for 10 seconds
+
+// Helper function to check if ESP32 is online based on polling activity
+function isEsp32Online(): boolean {
+  const timeSinceLastPoll = Date.now() - lastEsp32PollTime;
+  return timeSinceLastPoll < ESP32_POLL_TIMEOUT;
+}
+
 // Helper function to add command to queue with spam protection
 function queueCommand(relayId: number, source: 'manual' | 'session' | 'rfid' | 'reset' = 'manual', priority: number = 1): { success: boolean; command?: PendingCommand; error?: string } {
   // Spam protection - check cooldown period for this relay
@@ -207,6 +217,9 @@ router.post('/:relayId', async (req: Request, res: Response) => {
 // NEW: ESP32 polling endpoint to check for pending commands
 router.get('/poll', async (req: Request, res: Response) => {
   try {
+    // Track ESP32 polling activity
+    lastEsp32PollTime = Date.now();
+    
     const command = getNextCommand();
     
     if (command) {
@@ -319,63 +332,79 @@ router.post('/reset', async (req: Request, res: Response) => {
   }
 });
 
-// Get relay status
+// Get relay status - now based on ESP32 polling activity
 router.get('/status', async (req: Request, res: Response) => {
   try {
-    const response = await axios.get(
-      `${ESP32_BASE_URL}/status`,
-      { timeout: ESP32_TIMEOUT }
-    );
+    const now = Date.now();
+    const timeSinceLastPoll = now - lastEsp32PollTime;
+    const online = isEsp32Online();
 
-    return res.json({
-      success: true,
-      status: response.data,
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    logger.debug('Error fetching relay status (expected if ESP32 is offline):', error);
-    
-    if (axios.isAxiosError(error)) {
-      if (error.code === 'ECONNREFUSED') {
-        return res.status(503).json({ 
-          error: 'ESP32 not reachable. Please check connection.',
-          message: 'ESP32 is offline or not connected to the network'
-        });
-      }
+    if (online) {
+      return res.json({
+        success: true,
+        status: {
+          system: 'online',
+          lastPollTime: lastEsp32PollTime,
+          timeSinceLastPoll: timeSinceLastPoll,
+          pollingActive: true
+        },
+        timestamp: new Date().toISOString()
+      });
+    } else {
+      return res.status(503).json({ 
+        error: 'ESP32 not reachable',
+        message: 'ESP32 is offline or not connected to the network',
+        status: {
+          system: 'offline',
+          lastPollTime: lastEsp32PollTime,
+          timeSinceLastPoll: timeSinceLastPoll,
+          pollingActive: false
+        },
+        timestamp: new Date().toISOString()
+      });
     }
 
-    return res.status(503).json({ 
-      error: 'ESP32 not reachable',
-      message: 'ESP32 is offline or not connected to the network',
-      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+  } catch (error) {
+    logger.error('Error checking ESP32 status:', error);
+    return res.status(500).json({ 
+      error: 'Failed to check ESP32 status',
+      message: 'Internal server error'
     });
   }
 });
 
-// Test ESP32 connection
+// Test ESP32 connection - now based on polling activity
 router.get('/test', async (req: Request, res: Response) => {
   try {
-    const response = await axios.get(
-      `${ESP32_BASE_URL}/ping`,
-      { timeout: 3000 }
-    );
+    const now = Date.now();
+    const timeSinceLastPoll = now - lastEsp32PollTime;
+    const online = isEsp32Online();
 
-    return res.json({
-      success: true,
-      message: 'ESP32 connection successful',
-      response: response.data
-    });
+    if (online) {
+      return res.json({
+        success: true,
+        message: 'ESP32 connection successful',
+        pollingModel: true,
+        lastPollTime: lastEsp32PollTime,
+        timeSinceLastPoll: timeSinceLastPoll
+      });
+    } else {
+      return res.status(503).json({
+        success: false,
+        error: 'ESP32 not reachable',
+        message: 'ESP32 is offline or not connected to the network',
+        pollingModel: true,
+        lastPollTime: lastEsp32PollTime,
+        timeSinceLastPoll: timeSinceLastPoll
+      });
+    }
 
   } catch (error) {
-    // Don't log this as an error since ESP32 might not be running
-    logger.debug('ESP32 connection test failed (expected if ESP32 is offline):', error);
-    
-    return res.status(503).json({
+    logger.error('Error testing ESP32 connection:', error);
+    return res.status(500).json({
       success: false,
-      error: 'ESP32 not reachable',
-      message: 'ESP32 is offline or not connected to the network',
-      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+      error: 'Failed to test ESP32 connection',
+      message: 'Internal server error'
     });
   }
 });
@@ -383,20 +412,26 @@ router.get('/test', async (req: Request, res: Response) => {
 // NEW: Get pending commands queue status (for debugging)
 router.get('/queue', async (req: Request, res: Response) => {
   try {
+    const now = Date.now();
+    const timeSinceLastPoll = now - lastEsp32PollTime;
+    
     return res.json({
       success: true,
+      esp32Online: isEsp32Online(),
+      lastPollTime: lastEsp32PollTime,
+      timeSinceLastPoll: timeSinceLastPoll,
       pendingCommands: pendingCommands.length,
       commands: pendingCommands.map(cmd => ({
         id: cmd.id,
         relayId: cmd.relayId,
         source: cmd.source,
         priority: cmd.priority,
-        age: Date.now() - cmd.timestamp
+        age: now - cmd.timestamp
       })),
       spamProtection: Object.entries(lastCommandTimes).map(([relayId, time]) => ({
         relayId: parseInt(relayId),
         lastCommandTime: time,
-        cooldownRemaining: Math.max(0, COMMAND_COOLDOWN - (Date.now() - time))
+        cooldownRemaining: Math.max(0, COMMAND_COOLDOWN - (now - time))
       })),
       timestamp: new Date().toISOString()
     });
