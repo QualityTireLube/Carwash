@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Zap, RotateCcw, CheckCircle, XCircle, Clock } from 'lucide-react'
+import { Zap, RotateCcw, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 
 interface RelayStatus {
@@ -29,6 +29,27 @@ export default function ControlPanel() {
   const [espOnline, setEspOnline] = useState<boolean>(true)
   const [error, setError] = useState<string | null>(null)
   const [cooldowns, setCooldowns] = useState<CooldownInfo[]>([])
+  const [esp32Bypass, setEsp32Bypass] = useState<boolean>(false)
+
+  // Load ESP32 bypass setting and listen for changes
+  useEffect(() => {
+    const loadBypassSetting = () => {
+      const savedBypass = localStorage.getItem('esp32Bypass')
+      setEsp32Bypass(savedBypass === 'true')
+    }
+    
+    loadBypassSetting()
+    
+    const handleBypassChange = (event: CustomEvent) => {
+      setEsp32Bypass(event.detail)
+    }
+    
+    window.addEventListener('esp32BypassChanged', handleBypassChange as EventListener)
+    
+    return () => {
+      window.removeEventListener('esp32BypassChanged', handleBypassChange as EventListener)
+    }
+  }, [])
 
   useEffect(() => {
     fetchSystemStatus()
@@ -79,7 +100,7 @@ export default function ControlPanel() {
   }
 
   const triggerRelay = async (relayId: number) => {
-    if (!espOnline) {
+    if (!espOnline && !esp32Bypass) {
       setError('ESP32 controller is offline. Cannot trigger relays.')
       return
     }
@@ -138,7 +159,7 @@ export default function ControlPanel() {
   }
 
   const resetAll = async () => {
-    if (!espOnline) {
+    if (!espOnline && !esp32Bypass) {
       setError('ESP32 controller is offline. Cannot reset system.')
       return
     }
@@ -205,7 +226,7 @@ export default function ControlPanel() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* ESP32 Status Banner */}
-        {!espOnline && (
+        {!espOnline && !esp32Bypass && (
           <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
             <div className="flex items-center">
               <XCircle className="h-5 w-5 text-yellow-400 mr-3" />
@@ -215,6 +236,23 @@ export default function ControlPanel() {
                 </h3>
                 <p className="text-sm text-yellow-700 mt-1">
                   The ESP32 hardware controller is not connected. Relay controls are disabled until connection is restored.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ESP32 Bypass Status Banner */}
+        {esp32Bypass && (
+          <div className="mb-6 bg-orange-50 border border-orange-200 rounded-lg p-4">
+            <div className="flex items-center">
+              <AlertTriangle className="h-5 w-5 text-orange-400 mr-3" />
+              <div>
+                <h3 className="text-sm font-medium text-orange-800">
+                  ESP32 Bypass Mode Active
+                </h3>
+                <p className="text-sm text-orange-700 mt-1">
+                  ESP32 connectivity checks are bypassed. Commands will be sent but physical relays may not respond if ESP32 is offline.
                 </p>
               </div>
             </div>
@@ -258,7 +296,7 @@ export default function ControlPanel() {
                 const cooldownTime = getRelayCooldown(washType.id)
                 const isOnCooldown = isRelayOnCooldown(washType.id)
                 const isTriggered = lastTriggered === washType.id
-                const isDisabled = loading || !espOnline || isOnCooldown
+                                  const isDisabled = loading || (!espOnline && !esp32Bypass) || isOnCooldown
                 
                 return (
                   <div key={washType.id} className="border border-gray-200 rounded-lg p-4">
@@ -275,7 +313,7 @@ export default function ControlPanel() {
                           className={`btn btn-primary btn-sm ${
                             isTriggered ? 'bg-green-600' : 
                             isOnCooldown ? 'bg-gray-400 cursor-not-allowed' :
-                            !espOnline ? 'bg-gray-400 cursor-not-allowed' : ''
+                            (!espOnline && !esp32Bypass) ? 'bg-gray-400 cursor-not-allowed' : ''
                           }`}
                         >
                           {isTriggered ? (
@@ -324,7 +362,7 @@ export default function ControlPanel() {
                   const cooldownTime = getRelayCooldown(relayId)
                   const isOnCooldown = isRelayOnCooldown(relayId)
                   const isTriggered = lastTriggered === relayId
-                  const isDisabled = loading || !espOnline || isOnCooldown
+                  const isDisabled = loading || (!espOnline && !esp32Bypass) || isOnCooldown
                   
                   return (
                     <div key={relayId} className="flex flex-col space-y-2">
@@ -334,7 +372,7 @@ export default function ControlPanel() {
                         className={`btn btn-secondary btn-md ${
                           isTriggered ? 'bg-green-600 text-white' : 
                           isOnCooldown ? 'bg-gray-400 cursor-not-allowed' :
-                          !espOnline ? 'bg-gray-400 cursor-not-allowed' : ''
+                          (!espOnline && !esp32Bypass) ? 'bg-gray-400 cursor-not-allowed' : ''
                         }`}
                       >
                         {isTriggered ? (
@@ -362,10 +400,10 @@ export default function ControlPanel() {
               <div className="border-t pt-4">
                 <button
                   onClick={resetAll}
-                  disabled={loading || !espOnline}
+                  disabled={loading || (!espOnline && !esp32Bypass)}
                   className={`btn btn-danger btn-md w-full ${
                     lastTriggered === 5 ? 'bg-green-600' : 
-                    !espOnline ? 'bg-gray-400 cursor-not-allowed' : ''
+                    (!espOnline && !esp32Bypass) ? 'bg-gray-400 cursor-not-allowed' : ''
                   }`}
                 >
                   {lastTriggered === 5 ? (

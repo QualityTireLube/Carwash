@@ -36,6 +36,23 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState<'overview' | 'individual'>('overview')
   const [selectedSuite, setSelectedSuite] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [esp32Bypass, setEsp32Bypass] = useState<boolean>(false)
+
+  // Load ESP32 bypass setting from localStorage on mount
+  useEffect(() => {
+    const savedBypass = localStorage.getItem('esp32Bypass')
+    if (savedBypass === 'true') {
+      setEsp32Bypass(true)
+    }
+  }, [])
+
+  // Save ESP32 bypass setting to localStorage when changed
+  const handleEsp32BypassChange = (enabled: boolean) => {
+    setEsp32Bypass(enabled)
+    localStorage.setItem('esp32Bypass', enabled.toString())
+    // Dispatch custom event to notify other components
+    window.dispatchEvent(new CustomEvent('esp32BypassChanged', { detail: enabled }))
+  }
 
   useEffect(() => {
     fetchTestSuites()
@@ -174,6 +191,55 @@ export default function SettingsPage() {
             </div>
           </div>
         )}
+
+        {/* ESP32 Bypass Section */}
+        <div className="card p-6 mb-8">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-semibold text-gray-900 flex items-center">
+                <Settings className="h-5 w-5 mr-2" />
+                ESP32 Controller Settings
+              </h2>
+              <p className="text-gray-600">Temporary bypass controls for development and testing</p>
+            </div>
+          </div>
+
+          {/* ESP32 Bypass Toggle */}
+          <div className="border border-yellow-200 bg-yellow-50 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <Bug className="h-5 w-5 text-yellow-600 mr-3" />
+                <div>
+                  <h3 className="text-sm font-medium text-yellow-800">ESP32 Online Check Bypass</h3>
+                  <p className="text-sm text-yellow-700 mt-1">
+                    Skip ESP32 connectivity checks and allow wash controls even when ESP32 is offline. 
+                    <span className="font-medium"> For development/testing only.</span>
+                  </p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={esp32Bypass}
+                  onChange={(e) => handleEsp32BypassChange(e.target.checked)}
+                  className="sr-only peer"
+                />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-yellow-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-yellow-600"></div>
+              </label>
+            </div>
+            
+            {esp32Bypass && (
+              <div className="mt-3 p-3 bg-yellow-100 border border-yellow-300 rounded-md">
+                <div className="flex items-center">
+                  <AlertTriangle className="h-4 w-4 text-yellow-600 mr-2" />
+                  <span className="text-sm font-medium text-yellow-800">
+                    BYPASS ACTIVE: Wash controls will work regardless of ESP32 status
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
 
         {/* Test Management Section */}
         <div className="card p-6 mb-8">
