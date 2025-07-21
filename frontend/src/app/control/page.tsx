@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Zap, RotateCcw, CheckCircle, XCircle } from 'lucide-react'
+import { Zap, RotateCcw, CheckCircle, XCircle, Clock } from 'lucide-react'
 import Link from 'next/link'
 
 interface RelayStatus {
@@ -17,15 +17,37 @@ interface SystemStatus {
   relays: RelayStatus[]
 }
 
+interface CooldownInfo {
+  relayId: number
+  remainingTime: number
+}
+
 export default function ControlPanel() {
   const [systemStatus, setSystemStatus] = useState<SystemStatus | null>(null)
   const [loading, setLoading] = useState(false)
   const [lastTriggered, setLastTriggered] = useState<number | null>(null)
   const [espOnline, setEspOnline] = useState<boolean>(true)
+  const [error, setError] = useState<string | null>(null)
+  const [cooldowns, setCooldowns] = useState<CooldownInfo[]>([])
 
   useEffect(() => {
     fetchSystemStatus()
-    const interval = setInterval(fetchSystemStatus, 5000) // Update every 5 seconds
+    const interval = setInterval(fetchSystemStatus, 15000) // Update every 15 seconds (reduced for rate limiting)
+    return () => clearInterval(interval)
+  }, [])
+
+  // Update cooldown timers every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCooldowns(prev => prev
+        .map(cooldown => ({
+          ...cooldown,
+          remainingTime: Math.max(0, cooldown.remainingTime - 1000)
+        }))
+        .filter(cooldown => cooldown.remainingTime > 0)
+      )
+    }, 1000)
+    
     return () => clearInterval(interval)
   }, [])
 
@@ -47,13 +69,30 @@ export default function ControlPanel() {
     }
   }
 
+  const getRelayCooldown = (relayId: number): number => {
+    const cooldown = cooldowns.find(c => c.relayId === relayId)
+    return cooldown ? cooldown.remainingTime : 0
+  }
+
+  const isRelayOnCooldown = (relayId: number): boolean => {
+    return getRelayCooldown(relayId) > 0
+  }
+
   const triggerRelay = async (relayId: number) => {
     if (!espOnline) {
-      alert('ESP32 controller is offline. Cannot trigger relays.')
+      setError('ESP32 controller is offline. Cannot trigger relays.')
+      return
+    }
+
+    if (isRelayOnCooldown(relayId)) {
+      const remainingSeconds = Math.ceil(getRelayCooldown(relayId) / 1000)
+      setError(`Please wait ${remainingSeconds} seconds before triggering Relay ${relayId} again`)
       return
     }
 
     setLoading(true)
+    setError(null)
+    
     try {
       const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trigger/${relayId}`, {
         method: 'POST',
@@ -62,49 +101,88 @@ export default function ControlPanel() {
         },
       })
 
+      const data = await response.json()
+
       if (response.ok) {
         setLastTriggered(relayId)
         setTimeout(() => setLastTriggered(null), 2000) // Clear after 2 seconds
         fetchSystemStatus() // Refresh status
+        
+        // Add cooldown for this relay (2 seconds)
+        setCooldowns(prev => [
+          ...prev.filter(c => c.relayId !== relayId),
+          { relayId, remainingTime: 2000 }
+        ])
+      } else if (response.status === 429) {
+        // Handle spam protection error
+        setError(data.error || 'Command blocked - please wait before trying again')
+        
+        // Extract cooldown time from error message if available
+        const cooldownMatch = data.error?.match(/wait (\d+) seconds/)
+        if (cooldownMatch) {
+          const cooldownSeconds = parseInt(cooldownMatch[1])
+          setCooldowns(prev => [
+            ...prev.filter(c => c.relayId !== relayId),
+            { relayId, remainingTime: cooldownSeconds * 1000 }
+          ])
+        }
       } else {
-        const errorData = await response.json()
-        alert(`Failed to trigger relay: ${errorData.error || 'Unknown error'}`)
+        setError(`Failed to trigger relay: ${data.error || 'Unknown error'}`)
       }
     } catch (error) {
       console.error('Error triggering relay:', error)
-      alert('Failed to trigger relay. ESP32 may be offline.')
+      setError('Failed to trigger relay. ESP32 may be offline.')
     } finally {
       setLoading(false)
     }
   }
 
   const resetAll = async () => {
+    if (!espOnline) {
+      setError('ESP32 controller is offline. Cannot reset system.')
+      return
+    }
+
     setLoading(true)
+    setError(null)
+    
     try {
-      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trigger/5`, {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trigger/reset`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
       })
 
+      const data = await response.json()
+
       if (response.ok) {
-        setLastTriggered(5)
-        setTimeout(() => setLastTriggered(null), 2000)
+        setLastTriggered(5) // Show reset feedback
+        setTimeout(() => setLastTriggered(null), 3000) // Clear after 3 seconds
         fetchSystemStatus()
+        
+        // Clear all cooldowns since reset clears spam protection
+        setCooldowns([])
+        
+        // Show success message
+        setError(`✅ ${data.message}`)
+        setTimeout(() => setError(null), 5000)
+      } else {
+        setError(`Reset failed: ${data.error || 'Unknown error'}`)
       }
     } catch (error) {
       console.error('Error resetting system:', error)
+      setError('Failed to reset system. ESP32 may be offline.')
     } finally {
       setLoading(false)
     }
   }
 
   const washTypes = [
-    { id: 1, name: 'Basic Wash', description: 'Exterior wash with soap and rinse', duration: '2 min' },
-    { id: 2, name: 'Premium Wash', description: 'Basic wash plus tire cleaning and wax', duration: '3 min' },
-    { id: 3, name: 'Deluxe Wash', description: 'Premium wash plus interior vacuum and window cleaning', duration: '5 min' },
-    { id: 4, name: 'Ultimate Wash', description: 'Complete wash with all services and detailing', duration: '10 min' },
+    { id: 1, name: '$10 Wash', description: 'Premium service with all features', duration: '8 min' },
+    { id: 2, name: '$9 Wash', description: 'Deluxe service with premium features', duration: '6 min' },
+    { id: 3, name: '$8 Wash', description: 'Standard service with essential features', duration: '5 min' },
+    { id: 4, name: '$7 Wash', description: 'Basic service with core features', duration: '3 min' },
   ]
 
   return (
@@ -143,6 +221,17 @@ export default function ControlPanel() {
           </div>
         )}
 
+        {/* Error Messages */}
+        {error && (
+          <div className={`mb-6 border rounded-lg p-4 ${
+            error.startsWith('✅') 
+              ? 'bg-green-50 border-green-200 text-green-800' 
+              : 'bg-red-50 border-red-200 text-red-800'
+          }`}>
+            <p className="text-sm">{error}</p>
+          </div>
+        )}
+
         {/* System Status */}
         <div className="card p-6 mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">System Status</h2>
@@ -165,43 +254,64 @@ export default function ControlPanel() {
           <div className="card p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Wash Types</h2>
             <div className="space-y-4">
-              {washTypes.map((washType) => (
-                <div key={washType.id} className="border border-gray-200 rounded-lg p-4">
-                  <div className="flex justify-between items-start mb-2">
-                    <div>
-                      <h3 className="font-medium text-gray-900">{washType.name}</h3>
-                      <p className="text-sm text-gray-600">{washType.description}</p>
-                      <p className="text-xs text-gray-500">Duration: {washType.duration}</p>
+              {washTypes.map((washType) => {
+                const cooldownTime = getRelayCooldown(washType.id)
+                const isOnCooldown = isRelayOnCooldown(washType.id)
+                const isTriggered = lastTriggered === washType.id
+                const isDisabled = loading || !espOnline || isOnCooldown
+                
+                return (
+                  <div key={washType.id} className="border border-gray-200 rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-2">
+                      <div>
+                        <h3 className="font-medium text-gray-900">{washType.name}</h3>
+                        <p className="text-sm text-gray-600">{washType.description}</p>
+                        <p className="text-xs text-gray-500">Duration: {washType.duration}</p>
+                      </div>
+                      <div className="flex flex-col items-end space-y-2">
+                        <button
+                          onClick={() => triggerRelay(washType.id)}
+                          disabled={isDisabled}
+                          className={`btn btn-primary btn-sm ${
+                            isTriggered ? 'bg-green-600' : 
+                            isOnCooldown ? 'bg-gray-400 cursor-not-allowed' :
+                            !espOnline ? 'bg-gray-400 cursor-not-allowed' : ''
+                          }`}
+                        >
+                          {isTriggered ? (
+                            <CheckCircle className="h-4 w-4" />
+                          ) : isOnCooldown ? (
+                            <Clock className="h-4 w-4" />
+                          ) : (
+                            <Zap className="h-4 w-4" />
+                          )}
+                          {isTriggered ? 'Triggered' : 
+                           isOnCooldown ? `Wait ${Math.ceil(cooldownTime / 1000)}s` : 
+                           'Trigger'}
+                        </button>
+                        
+                        {isOnCooldown && (
+                          <div className="text-xs text-gray-500 text-center">
+                            Cooldown: {Math.ceil(cooldownTime / 1000)}s
+                          </div>
+                        )}
+                      </div>
                     </div>
-                    <button
-                      onClick={() => triggerRelay(washType.id)}
-                      disabled={loading || !espOnline}
-                      className={`btn btn-primary btn-sm ${
-                        lastTriggered === washType.id ? 'bg-green-600' : !espOnline ? 'bg-gray-400 cursor-not-allowed' : ''
-                      }`}
-                    >
-                      {lastTriggered === washType.id ? (
-                        <CheckCircle className="h-4 w-4" />
-                      ) : (
-                        <Zap className="h-4 w-4" />
-                      )}
-                      {lastTriggered === washType.id ? 'Triggered' : 'Trigger'}
-                    </button>
+                    {systemStatus?.relays && (
+                      <div className="flex items-center space-x-2">
+                        <span className="text-xs text-gray-500">Relay {washType.id}:</span>
+                        <span className={`text-xs px-2 py-1 rounded-full ${
+                          systemStatus.relays[washType.id - 1]?.state === 'ON'
+                            ? 'bg-green-100 text-green-800'
+                            : 'bg-gray-100 text-gray-800'
+                        }`}>
+                          {systemStatus.relays[washType.id - 1]?.state || 'OFF'}
+                        </span>
+                      </div>
+                    )}
                   </div>
-                  {systemStatus?.relays && (
-                    <div className="flex items-center space-x-2">
-                      <span className="text-xs text-gray-500">Relay {washType.id}:</span>
-                      <span className={`text-xs px-2 py-1 rounded-full ${
-                        systemStatus.relays[washType.id - 1]?.state === 'ON'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-gray-100 text-gray-800'
-                      }`}>
-                        {systemStatus.relays[washType.id - 1]?.state || 'OFF'}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
 
@@ -210,23 +320,43 @@ export default function ControlPanel() {
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Manual Controls</h2>
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-4">
-                {[1, 2, 3, 4].map((relayId) => (
-                  <button
-                    key={relayId}
-                    onClick={() => triggerRelay(relayId)}
-                    disabled={loading || !espOnline}
-                    className={`btn btn-secondary btn-md ${
-                      lastTriggered === relayId ? 'bg-green-600 text-white' : !espOnline ? 'bg-gray-400 cursor-not-allowed' : ''
-                    }`}
-                  >
-                    {lastTriggered === relayId ? (
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                    ) : (
-                      <Zap className="h-4 w-4 mr-2" />
-                    )}
-                    Relay {relayId}
-                  </button>
-                ))}
+                {[1, 2, 3, 4].map((relayId) => {
+                  const cooldownTime = getRelayCooldown(relayId)
+                  const isOnCooldown = isRelayOnCooldown(relayId)
+                  const isTriggered = lastTriggered === relayId
+                  const isDisabled = loading || !espOnline || isOnCooldown
+                  
+                  return (
+                    <div key={relayId} className="flex flex-col space-y-2">
+                      <button
+                        onClick={() => triggerRelay(relayId)}
+                        disabled={isDisabled}
+                        className={`btn btn-secondary btn-md ${
+                          isTriggered ? 'bg-green-600 text-white' : 
+                          isOnCooldown ? 'bg-gray-400 cursor-not-allowed' :
+                          !espOnline ? 'bg-gray-400 cursor-not-allowed' : ''
+                        }`}
+                      >
+                        {isTriggered ? (
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                        ) : isOnCooldown ? (
+                          <Clock className="h-4 w-4 mr-2" />
+                        ) : (
+                          <Zap className="h-4 w-4 mr-2" />
+                        )}
+                        {isTriggered ? 'Triggered' : 
+                         isOnCooldown ? `${Math.ceil(cooldownTime / 1000)}s` : 
+                         `Relay ${relayId}`}
+                      </button>
+                      
+                      {isOnCooldown && (
+                        <div className="text-xs text-gray-500 text-center">
+                          Cooldown: {Math.ceil(cooldownTime / 1000)}s
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
               </div>
               
               <div className="border-t pt-4">
@@ -234,7 +364,8 @@ export default function ControlPanel() {
                   onClick={resetAll}
                   disabled={loading || !espOnline}
                   className={`btn btn-danger btn-md w-full ${
-                    lastTriggered === 5 ? 'bg-green-600' : !espOnline ? 'bg-gray-400 cursor-not-allowed' : ''
+                    lastTriggered === 5 ? 'bg-green-600' : 
+                    !espOnline ? 'bg-gray-400 cursor-not-allowed' : ''
                   }`}
                 >
                   {lastTriggered === 5 ? (
@@ -242,8 +373,11 @@ export default function ControlPanel() {
                   ) : (
                     <RotateCcw className="h-4 w-4 mr-2" />
                   )}
-                  {lastTriggered === 5 ? 'Reset Complete' : 'Reset All'}
+                  {lastTriggered === 5 ? 'Reset Complete - Relay 5 Triggered' : 'Reset All & Trigger Relay 5'}
                 </button>
+                <p className="text-xs text-gray-500 mt-2 text-center">
+                  Reset clears all pending commands and triggers relay 5 for 500ms
+                </p>
               </div>
             </div>
           </div>
@@ -253,29 +387,40 @@ export default function ControlPanel() {
         {systemStatus?.relays && (
           <div className="card p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Relay Status</h2>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
-              {systemStatus.relays.map((relay) => (
-                <div key={relay.id} className="text-center">
-                  <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-2 ${
-                    relay.state === 'ON' ? 'bg-green-500' : 'bg-gray-300'
-                  }`}>
-                    {relay.state === 'ON' ? (
-                      <CheckCircle className="h-6 w-6 text-white" />
-                    ) : (
-                      <XCircle className="h-6 w-6 text-gray-600" />
-                    )}
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4">
+              {systemStatus.relays.map((relay) => {
+                const cooldownTime = getRelayCooldown(relay.id)
+                const isOnCooldown = isRelayOnCooldown(relay.id)
+                
+                return (
+                  <div key={relay.id} className="text-center">
+                    <div className={`w-16 h-16 mx-auto rounded-full flex items-center justify-center mb-2 ${
+                      relay.state === 'ON' ? 'bg-green-500' : 'bg-gray-300'
+                    }`}>
+                      {relay.state === 'ON' ? (
+                        <CheckCircle className="h-6 w-6 text-white" />
+                      ) : isOnCooldown ? (
+                        <Clock className="h-6 w-6 text-gray-600" />
+                      ) : (
+                        <XCircle className="h-6 w-6 text-gray-600" />
+                      )}
+                    </div>
+                    <p className="text-sm font-medium text-gray-900">Relay {relay.id}</p>
+                    <p className="text-xs text-gray-500">Pin {relay.pin}</p>
+                    <p className={`text-xs px-2 py-1 rounded-full mt-1 ${
+                      relay.state === 'ON'
+                        ? 'bg-green-100 text-green-800'
+                        : isOnCooldown
+                        ? 'bg-yellow-100 text-yellow-800'
+                        : 'bg-gray-100 text-gray-800'
+                    }`}>
+                      {relay.state === 'ON' ? 'ON' : 
+                       isOnCooldown ? `${Math.ceil(cooldownTime / 1000)}s` : 
+                       'OFF'}
+                    </p>
                   </div>
-                  <p className="text-sm font-medium text-gray-900">Relay {relay.id}</p>
-                  <p className="text-xs text-gray-500">Pin {relay.pin}</p>
-                  <p className={`text-xs px-2 py-1 rounded-full mt-1 ${
-                    relay.state === 'ON'
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-gray-100 text-gray-800'
-                  }`}>
-                    {relay.state}
-                  </p>
-                </div>
-              ))}
+                )
+              })}
             </div>
           </div>
         )}

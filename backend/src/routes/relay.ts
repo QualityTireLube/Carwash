@@ -27,7 +27,7 @@ const COMMAND_COOLDOWN = 2000; // 2 seconds between commands for same relay
 
 // ESP32 polling tracking
 let lastEsp32PollTime = 0;
-const ESP32_POLL_TIMEOUT = 10000; // Consider ESP32 offline if no poll for 10 seconds
+const ESP32_POLL_TIMEOUT = 20000; // Consider ESP32 offline if no poll for 20 seconds (increased for 3s polling)
 
 // Helper function to check if ESP32 is online based on polling activity
 function isEsp32Online(): boolean {

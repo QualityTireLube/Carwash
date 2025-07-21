@@ -40,7 +40,7 @@ export default function WashSessionsPage() {
   useEffect(() => {
     fetchData()
     // Set up polling for active sessions
-    const interval = setInterval(fetchActiveSessions, 5000) // Update every 5 seconds
+    const interval = setInterval(fetchActiveSessions, 15000) // Update every 15 seconds (reduced for rate limiting)
     return () => clearInterval(interval)
   }, [])
 
