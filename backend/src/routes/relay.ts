@@ -332,71 +332,33 @@ router.post('/reset', async (req: Request, res: Response) => {
   }
 });
 
-// NEW: Reset Options endpoint - clears specific relays then triggers relay 5
+// NEW: Reset Options endpoint - just triggers relay 5 like other washes
 router.post('/reset-options', async (req: Request, res: Response) => {
   try {
-    logger.info('Reset Options command received - clearing relays 1,2,3,4,6 then triggering relay 5');
+    logger.info('Reset Options command received - triggering relay 5');
     
-    // Clear pending commands for relays 1, 2, 3, 4, 6 specifically
-    const relaysToReset = [1, 2, 3, 4, 6];
-    const originalCommandCount = pendingCommands.length;
+    // Queue relay 5 command just like any other wash
+    const result = queueCommand(5, 'manual', 2);
     
-    // Remove pending commands for the specified relays
-    pendingCommands = pendingCommands.filter(cmd => !relaysToReset.includes(cmd.relayId));
-    const clearedCommands = originalCommandCount - pendingCommands.length;
-    
-    // Clear spam protection timers for the specified relays
-    relaysToReset.forEach(relayId => {
-      if (lastCommandTimes[relayId]) {
-        delete lastCommandTimes[relayId];
-      }
-    });
-    
-    // Directly trigger relay 5 on ESP32 (500ms)
-    let relayTriggered = false;
-    let relayError = null;
-    
-    try {
-      logger.info('Directly triggering relay 5 on ESP32 for reset');
-      
-      const response = await axios.post(
-        `${ESP32_BASE_URL}/trigger`,
-        { relay: 5 },
-        { 
-          timeout: ESP32_TIMEOUT,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
-
-      if (response.status === 200) {
-        relayTriggered = true;
-        logger.info('Relay 5 triggered successfully via direct ESP32 command');
-      } else {
-        throw new Error(`ESP32 returned status ${response.status}`);
-      }
-    } catch (error) {
-      relayError = error;
-      logger.error('Failed to directly trigger relay 5 on ESP32:', error);
+    if (!result.success) {
+      return res.status(429).json({ 
+        error: result.error,
+        relayId: 5
+      });
     }
-    
-    logger.info(`Reset Options completed: Cleared ${clearedCommands} commands for relays [${relaysToReset.join(',')}], relay 5 trigger: ${relayTriggered ? 'SUCCESS' : 'FAILED'}`);
-    
+
     return res.json({ 
       success: true, 
-      message: relayTriggered 
-        ? 'Reset Options completed - relays 1,2,3,4,6 cleared, relay 5 triggered for 500ms'
-        : `Reset Options completed - relays 1,2,3,4,6 cleared, but relay 5 trigger failed: ${(relayError as Error)?.message || 'Unknown error'}`,
-      clearedRelays: relaysToReset,
-      clearedCommands,
-      relayTriggered,
-      relayError: (relayError as Error)?.message || null,
+      message: `Reset Options - Relay 5 command queued`,
+      relayId: 5,
+      commandId: result.command!.id,
       timestamp: new Date().toISOString()
     });
     
   } catch (error) {
-    logger.error('Error processing reset options command:', error);
+    logger.error('Error queueing reset options command:', error);
     return res.status(500).json({ 
-      error: 'Failed to process reset options command',
+      error: 'Failed to queue reset options command',
       details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
     });
   }
