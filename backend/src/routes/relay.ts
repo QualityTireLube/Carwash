@@ -352,24 +352,44 @@ router.post('/reset-options', async (req: Request, res: Response) => {
       }
     });
     
-    // Queue relay 5 (reset relay) with highest priority
-    const result = queueCommand(5, 'reset', 10); // Highest priority
+    // Directly trigger relay 5 on ESP32 (500ms)
+    let relayTriggered = false;
+    let relayError = null;
     
-    if (!result.success) {
-      return res.status(500).json({ 
-        error: 'Failed to queue reset command',
-        details: result.error
-      });
+    try {
+      logger.info('Directly triggering relay 5 on ESP32 for reset');
+      
+      const response = await axios.post(
+        `${ESP32_BASE_URL}/trigger`,
+        { relay: 5 },
+        { 
+          timeout: ESP32_TIMEOUT,
+          headers: { 'Content-Type': 'application/json' }
+        }
+      );
+
+      if (response.status === 200) {
+        relayTriggered = true;
+        logger.info('Relay 5 triggered successfully via direct ESP32 command');
+      } else {
+        throw new Error(`ESP32 returned status ${response.status}`);
+      }
+    } catch (error) {
+      relayError = error;
+      logger.error('Failed to directly trigger relay 5 on ESP32:', error);
     }
     
-    logger.info(`Reset Options initiated: Cleared ${clearedCommands} commands for relays [${relaysToReset.join(',')}], queued relay 5 trigger`);
+    logger.info(`Reset Options completed: Cleared ${clearedCommands} commands for relays [${relaysToReset.join(',')}], relay 5 trigger: ${relayTriggered ? 'SUCCESS' : 'FAILED'}`);
     
     return res.json({ 
       success: true, 
-      message: 'Reset Options initiated - relays 1,2,3,4,6 cleared, relay 5 will trigger for 500ms',
+      message: relayTriggered 
+        ? 'Reset Options completed - relays 1,2,3,4,6 cleared, relay 5 triggered for 500ms'
+        : `Reset Options completed - relays 1,2,3,4,6 cleared, but relay 5 trigger failed: ${(relayError as Error)?.message || 'Unknown error'}`,
       clearedRelays: relaysToReset,
       clearedCommands,
-      resetCommandId: result.command!.id,
+      relayTriggered,
+      relayError: (relayError as Error)?.message || null,
       timestamp: new Date().toISOString()
     });
     
