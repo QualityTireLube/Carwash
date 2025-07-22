@@ -12,6 +12,7 @@
     "migrate:manual": "npx ts-node src/database/run-migrations-manual.ts",
     "migrate:js": "node src/database/run-migrations-manual.js",
     "add-test-data": "npx ts-node src/database/add-test-data.ts",
+    "cleanup-duplicates": "node src/database/cleanup-duplicates.js",
     "test": "NODE_ENV=test jest",
     "test:watch": "NODE_ENV=test jest --watch",
     "test:coverage": "NODE_ENV=test jest --coverage",

@@ -34,7 +34,7 @@ async function runMigrationsManual() {
     await db.query(`
       CREATE TABLE IF NOT EXISTS wash_types (
           id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-          name VARCHAR(255) NOT NULL,
+          name VARCHAR(255) NOT NULL UNIQUE,
           description TEXT,
           duration INTEGER NOT NULL CHECK (duration > 0),
           price DECIMAL(10,2) NOT NULL CHECK (price >= 0),
@@ -74,11 +74,11 @@ async function runMigrationsManual() {
     // Insert default wash types
     await db.query(`
       INSERT INTO wash_types (name, description, duration, price, relay_id) VALUES
-          ('Basic Wash', 'Exterior wash with soap and rinse', 120, 5.99, 1),
+          ('Ultimate Wash', 'Complete wash with all services and detailing', 300, 24.99, 1),
           ('Premium Wash', 'Basic wash plus tire cleaning and wax', 180, 9.99, 2),
-          ('Deluxe Wash', 'Premium wash plus interior vacuum and window cleaning', 300, 14.99, 3),
-          ('Ultimate Wash', 'Complete wash with all services and detailing', 600, 24.99, 4)
-      ON CONFLICT DO NOTHING
+          ('Express Wash', 'Soap, rinse, and basic dry', 150, 7.99, 3),
+          ('Basic Wash', 'Exterior wash with soap and rinse', 120, 5.99, 4)
+      ON CONFLICT (name) DO NOTHING
     `);
     logger.info('✓ Default wash types inserted');
 
