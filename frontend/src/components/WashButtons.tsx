@@ -9,9 +9,7 @@ const washes = [
   { label: "$9 Wash", id: 2 },
   { label: "$8 Wash", id: 3 },
   { label: "$7 Wash", id: 4 },
-  { label: "Reset System", id: 5 },
-  { label: "Reset Options", id: 7 }, // New Reset Options
-  { label: "Spare", id: 6 },
+  { label: "Spare", id: 5 },
 ];
 
 interface CooldownInfo {
@@ -100,74 +98,37 @@ export default function WashButtons() {
     setError(null);
     
     try {
-      // Handle reset differently
-      if (id === 5) {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trigger/reset`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
+      // Regular relay trigger
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trigger/${id}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      });
 
-        if (response.ok) {
-          const data = await response.json();
-          // Clear all cooldowns since reset clears spam protection
-          setCooldowns([]);
-          setError(`✅ ${data.message}`);
-          setTimeout(() => setError(null), 5000);
-        } else {
-          const data = await response.json();
-          setError(`Reset failed: ${data.error || 'Unknown error'}`);
-        }
-      } else if (id === 7) {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trigger/reset-options`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
+      const data = await response.json();
 
-        if (response.ok) {
-          const data = await response.json();
-          setError(`✅ ${data.message}`);
-          setTimeout(() => setError(null), 5000);
-        } else {
-          const data = await response.json();
-          setError(`Reset Options failed: ${data.error || 'Unknown error'}`);
-        }
-      } else {
-        // Regular relay trigger
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trigger/${id}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-        });
-
-        const data = await response.json();
-
-        if (response.ok) {
-          // Add cooldown for this relay (2 seconds)
+      if (response.ok) {
+        // Add cooldown for this relay (2 seconds)
+        setCooldowns(prev => [
+          ...prev.filter(c => c.relayId !== id),
+          { relayId: id, remainingTime: 2000 }
+        ]);
+      } else if (response.status === 429) {
+        // Handle spam protection error
+        setError(data.error || 'Command blocked - please wait before trying again');
+        
+        // Extract cooldown time from error message if available
+        const cooldownMatch = data.error?.match(/wait (\d+) seconds/);
+        if (cooldownMatch) {
+          const cooldownSeconds = parseInt(cooldownMatch[1]);
           setCooldowns(prev => [
             ...prev.filter(c => c.relayId !== id),
-            { relayId: id, remainingTime: 2000 }
+            { relayId: id, remainingTime: cooldownSeconds * 1000 }
           ]);
-        } else if (response.status === 429) {
-          // Handle spam protection error
-          setError(data.error || 'Command blocked - please wait before trying again');
-          
-          // Extract cooldown time from error message if available
-          const cooldownMatch = data.error?.match(/wait (\d+) seconds/);
-          if (cooldownMatch) {
-            const cooldownSeconds = parseInt(cooldownMatch[1]);
-            setCooldowns(prev => [
-              ...prev.filter(c => c.relayId !== id),
-              { relayId: id, remainingTime: cooldownSeconds * 1000 }
-            ]);
-          }
-        } else {
-          setError(`Failed to trigger relay: ${data.error || 'Unknown error'}`);
         }
+      } else {
+        setError(`Failed to trigger relay: ${data.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error('Failed to trigger relay:', error);
