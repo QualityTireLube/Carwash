@@ -52,13 +52,15 @@ const corsOptions = {
       origin.includes('stephen-villavasos-projects')
     );
     
-    // Log the origin for debugging
-    logger.info('CORS request from origin:', { origin, isVercelApp, allowedOrigins });
-    
     if (allowedOrigins.includes(origin) || isVercelApp) {
+      // Only log CORS in development or for debugging
+      if (process.env.NODE_ENV === 'development') {
+        logger.debug('CORS allowed for origin:', { origin, isVercelApp });
+      }
       callback(null, true);
     } else {
-      logger.warn('CORS blocked origin:', { origin });
+      // Always log blocked CORS requests
+      logger.warn('CORS blocked origin:', { origin, allowedOrigins });
       callback(new Error('Not allowed by CORS'));
     }
   },
