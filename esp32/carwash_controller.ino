@@ -401,7 +401,7 @@ String formatDuration(unsigned long triggerTime) {
 }
 
 void addLogEntry(int relayId, String source, String deviceInfo, String userName = "") {
-  String washNames[NUM_RELAYS] = {"$10 Wash", "$9 Wash", "$8 Wash", "$7 Wash", "Reset Wash", "Spare"};
+  String washNames[NUM_RELAYS] = {"Ultimate Wash", "Premium Wash", "Express Wash", "Basic Wash", "Reset Function", "Spare"};
   
   unsigned long currentTime = millis();
   
@@ -629,7 +629,7 @@ void handleRoot() {
   html += "</style>";
   html += "<script>";
   html += "function triggerWash(relayId) {";
-  html += "const washNames = ['$10 Wash', '$9 Wash', '$8 Wash', '$7 Wash', 'Reset Wash', 'Spare'];";
+  html += "const washNames = ['Ultimate Wash', 'Premium Wash', 'Express Wash', 'Basic Wash', 'Reset Function', 'Spare'];";
   html += "const washName = washNames[relayId - 1];";
   html += "const btn = document.getElementById('wash-' + relayId);";
   html += "const originalText = btn.innerHTML;";
@@ -685,11 +685,11 @@ void handleRoot() {
   
   // Define wash station names
   String washNames[NUM_RELAYS] = {
-    "$10 Wash",
-    "$9 Wash", 
-    "$8 Wash",
-    "$7 Wash",
-    "Reset Wash",
+    "Ultimate Wash",
+    "Premium Wash", 
+    "Express Wash",
+    "Basic Wash",
+    "Reset Function",
     "Spare"
   };
   

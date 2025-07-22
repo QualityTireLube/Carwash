@@ -47,6 +47,13 @@ A full-stack web application for controlling a car wash system using a Waveshare
 - WiFi auto-configuration with captive portal
 - Real-time activity logging and web interface
 
+### Wash Service Tiers
+- **Ultimate Wash** ($24.99, 5:00, Relay #1): Complete wash with all services and detailing
+- **Premium Wash** ($9.99, 3:00, Relay #2): Basic wash plus tire cleaning and wax  
+- **Express Wash** ($7.99, 2:30, Relay #3): Soap, rinse, and basic dry
+- **Basic Wash** ($5.99, 2:00, Relay #4): Exterior wash with soap and rinse
+- **Reset Function** (Relay #5): Emergency system reset
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -151,15 +158,17 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
 ## 🔌 Hardware Setup
 
 ### ESP32-S3 Pinout
-- Relay 1: GPIO 1 (Wash Type 1)
-- Relay 2: GPIO 2 (Wash Type 2)
-- Relay 3: GPIO 3 (Wash Type 3)
-- Relay 4: GPIO 4 (Wash Type 4)
-- Relay 5: GPIO 5 (Reset)
+- Relay 1: GPIO 1 (Ultimate Wash - $24.99)
+- Relay 2: GPIO 2 (Premium Wash - $9.99)
+- Relay 3: GPIO 41 (Express Wash - $7.99)
+- Relay 4: GPIO 42 (Basic Wash - $5.99)
+- Relay 5: GPIO 45 (Reset Function)
+- Relay 6: GPIO 46 (Spare/Future Use)
 
 ### Relay Control Logic
-- Relays 1-4: ON → 500ms delay → OFF
-- Relay 5: Reset functionality
+- Relays 1-4: ON → 500ms delay → OFF (wash cycles)
+- Relay 5: ON → 500ms delay → OFF (reset function)
+- Relay 6: Available for future expansion
 
 ## 📊 Request Optimization & Performance
 

@@ -86,14 +86,14 @@ The controller uses the following GPIO pins on ESP32-S3:
 const int relayPins[6] = {1, 2, 41, 42, 45, 46};
 ```
 
-| Relay | ESP32 Pin | Wash Type | Purpose |
-|-------|-----------|-----------|---------|
-| Relay 1 | GPIO 1 | $10 Wash | Premium service |
-| Relay 2 | GPIO 2 | $9 Wash | Deluxe service |
-| Relay 3 | GPIO 41 | $8 Wash | Standard service |
-| Relay 4 | GPIO 42 | $7 Wash | Basic service |
-| Relay 5 | GPIO 45 | Reset | Emergency/System reset |
-| Relay 6 | GPIO 46 | Spare | Future expansion |
+| Relay | ESP32 Pin | Wash Type | Price | Duration | Purpose |
+|-------|-----------|-----------|-------|----------|---------|
+| Relay 1 | GPIO 1 | Ultimate Wash | $24.99 | 5:00 | Complete wash with all services |
+| Relay 2 | GPIO 2 | Premium Wash | $9.99 | 3:00 | Basic wash + tire cleaning + wax |
+| Relay 3 | GPIO 41 | Express Wash | $7.99 | 2:30 | Soap, rinse, and basic dry |
+| Relay 4 | GPIO 42 | Basic Wash | $5.99 | 2:00 | Exterior wash with soap and rinse |
+| Relay 5 | GPIO 45 | Reset | - | 500ms | Emergency/System reset |
+| Relay 6 | GPIO 46 | Spare | - | - | Future expansion |
 
 ### Wiring Diagram
 
@@ -338,14 +338,14 @@ Content-Type: application/json
 
 ### Wash Service Tiers
 
-| Relay | Service | Price | Features |
-|-------|---------|-------|----------|
-| 1 | Premium | $10 | All features, longest cycle (8 min) |
-| 2 | Deluxe | $9 | Premium features, extended cycle (6 min) |
-| 3 | Standard | $8 | Essential features, standard cycle (5 min) |
-| 4 | Basic | $7 | Core features, quick cycle (3 min) |
-| 5 | Reset | - | Emergency system reset |
-| 6 | Spare | - | Available for future expansion |
+| Relay | Service | Price | Duration | Features |
+|-------|---------|-------|----------|----------|
+| 1 | Ultimate Wash | $24.99 | 5:00 | Complete wash with all services and detailing |
+| 2 | Premium Wash | $9.99 | 3:00 | Basic wash plus tire cleaning and wax |
+| 3 | Express Wash | $7.99 | 2:30 | Soap, rinse, and basic dry |
+| 4 | Basic Wash | $5.99 | 2:00 | Exterior wash with soap and rinse |
+| 5 | Reset | - | 500ms | Emergency system reset |
+| 6 | Spare | - | - | Available for future expansion |
 
 ### Spam Protection
 
@@ -507,12 +507,17 @@ Backend URL: https://carwash-backend-5spn.onrender.com
 Local web server started on port 80
 
 Received command: Relay 1 from manual (ID: cmd_123)
-WASH: Relay 1 (pin 1) turned ON for 500ms    [Relay 1 = $10 Wash]
+WASH: Relay 1 (pin 1) turned ON for 500ms    [Relay 1 = Ultimate Wash]
 WASH COMPLETE: Relay 1 (pin 1) turned OFF after 500ms
 ✅ Completion notification sent: Relay 1 SUCCESS
 📢 Backend notification: Wash triggered from the ESP32 - Relay 1 cycled successfully
 
-Received command: Relay 5 from reset (ID: cmd_456)
+Received command: Relay 4 from rfid (ID: cmd_456)
+WASH: Relay 4 (pin 42) turned ON for 500ms   [Relay 4 = Basic Wash]
+WASH COMPLETE: Relay 4 (pin 42) turned OFF after 500ms
+✅ Completion notification sent: Relay 4 SUCCESS
+
+Received command: Relay 5 from reset (ID: cmd_789)
 RESET: Relay 5 (pin 45) turned ON for 500ms   [Relay 5 = System Reset]
 RESET COMPLETE: Relay 5 (pin 45) turned OFF after 500ms
 ✅ Completion notification sent: Relay 5 SUCCESS
