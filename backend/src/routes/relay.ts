@@ -22,7 +22,7 @@ const COMMAND_COOLDOWN = 2000; // 2 seconds between commands for same relay
 
 // ESP32 polling tracking
 let lastEsp32PollTime = 0;
-const ESP32_POLL_TIMEOUT = 30000; // Consider ESP32 offline if no poll for 30 seconds (increased for 10s polling)
+const ESP32_POLL_TIMEOUT = 12000; // Consider ESP32 offline if no poll for 12 seconds (4 missed 3s polls)
 
 // Simple cache for status endpoint to reduce database calls
 interface StatusCache {
