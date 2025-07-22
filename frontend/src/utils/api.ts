@@ -50,7 +50,22 @@ export async function triggerRelay(relayId: number): Promise<string> {
 
 export async function getSystemStatus() {
   try {
-    return await apiRequest(`${API_BASE_URL}/api/trigger/status`);
+    // Don't use retry logic for ESP32 status since failures are expected when offline
+    const response = await fetch(`${API_BASE_URL}/api/trigger/status`, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (response.ok) {
+      return await response.json();
+    } else if (response.status === 503) {
+      // 503 is expected when ESP32 is offline - handle gracefully
+      const data = await response.json();
+      return { success: false, error: 'ESP32 not reachable', offline: true, ...data };
+    } else {
+      throw new Error(`API Error: ${response.status}`);
+    }
   } catch (error) {
     console.debug('ESP32 status check failed (expected if hardware is offline):', error);
     return { success: false, error: 'ESP32 not reachable', offline: true };
@@ -59,7 +74,22 @@ export async function getSystemStatus() {
 
 export async function testConnection() {
   try {
-    return await apiRequest(`${API_BASE_URL}/api/trigger/test`);
+    // Don't use retry logic for ESP32 test since 503 is expected when offline
+    const response = await fetch(`${API_BASE_URL}/api/trigger/test`, {
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    
+    if (response.ok) {
+      return await response.json();
+    } else if (response.status === 503) {
+      // 503 is expected when ESP32 is offline - handle gracefully
+      const data = await response.json();
+      return { success: false, error: 'ESP32 not reachable', offline: true, ...data };
+    } else {
+      throw new Error(`API Error: ${response.status}`);
+    }
   } catch (error) {
     // Handle ESP32 connectivity issues gracefully - this is expected when hardware is offline
     console.debug('ESP32 connection test failed (expected if hardware is offline):', error);
