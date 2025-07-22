@@ -9,7 +9,7 @@ const washes = [
   { label: "$9 Wash", id: 2 },
   { label: "$8 Wash", id: 3 },
   { label: "$7 Wash", id: 4 },
-  { label: "Spare", id: 5 },
+  { label: "Reset wash", id: 5 },
 ];
 
 interface CooldownInfo {

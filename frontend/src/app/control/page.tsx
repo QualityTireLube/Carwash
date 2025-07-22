@@ -163,6 +163,7 @@ export default function ControlPanel() {
     { id: 2, name: '$9 Wash', description: 'Deluxe service with premium features', duration: '6 min' },
     { id: 3, name: '$8 Wash', description: 'Standard service with essential features', duration: '5 min' },
     { id: 4, name: '$7 Wash', description: 'Basic service with core features', duration: '3 min' },
+    { id: 5, name: 'Reset Wash', description: 'System reset and wash cycle', duration: '500ms' },
   ]
 
   return (
@@ -322,7 +323,7 @@ export default function ControlPanel() {
                   const isOnCooldown = isRelayOnCooldown(relayId)
                   const isTriggered = lastTriggered === relayId
                   const isDisabled = loading || (!espOnline && !esp32Bypass) || isOnCooldown
-                  const buttonLabel = relayId === 5 ? 'Spare' : `Relay ${relayId}`
+                  const buttonLabel = relayId === 5 ? 'Reset Wash' : `Relay ${relayId}`
                   
                   return (
                     <div key={relayId} className="flex flex-col space-y-2">
