@@ -1,16 +1,11 @@
 import { Router, Request, Response } from 'express';
-import axios from 'axios';
 import { logger } from '../utils/logger';
 import { db } from '../config/database';
 
 const router = Router();
 
-// ESP32 configuration
-const ESP32_BASE_URL = process.env.ESP32_BASE_URL || 'http://192.168.1.100';
-const ESP32_TIMEOUT = parseInt(process.env.ESP32_TIMEOUT || '5000');
-
 // Pending commands queue for ESP32 polling
-interface PendingCommand {
+export interface PendingCommand {
   id: string;
   relayId: number;
   timestamp: number;
@@ -36,7 +31,7 @@ function isEsp32Online(): boolean {
 }
 
 // Helper function to add command to queue with spam protection
-function queueCommand(relayId: number, source: 'manual' | 'session' | 'rfid' | 'reset' = 'manual', priority: number = 1): { success: boolean; command?: PendingCommand; error?: string } {
+export function queueCommand(relayId: number, source: 'manual' | 'session' | 'rfid' | 'reset' = 'manual', priority: number = 1): { success: boolean; command?: PendingCommand; error?: string } {
   // Spam protection - check cooldown period for this relay
   const now = Date.now();
   const lastCommandTime = lastCommandTimes[relayId] || 0;
