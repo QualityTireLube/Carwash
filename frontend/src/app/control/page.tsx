@@ -199,6 +199,47 @@ export default function ControlPanel() {
     }
   }
 
+  const resetOptions = async () => {
+    if (!espOnline && !esp32Bypass) {
+      setError('ESP32 controller is offline. Cannot reset system.')
+      return
+    }
+
+    setLoading(true)
+    setError(null)
+    
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trigger/reset-options`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        setLastTriggered(5) // Show reset feedback
+        setTimeout(() => setLastTriggered(null), 3000) // Clear after 3 seconds
+        fetchSystemStatus()
+        
+        // Clear cooldowns for the reset relays since spam protection was cleared
+        setCooldowns(prev => prev.filter(c => ![1, 2, 3, 4, 6].includes(c.relayId)))
+        
+        // Show success message
+        setError(`✅ ${data.message}`)
+        setTimeout(() => setError(null), 5000)
+      } else {
+        setError(`Reset Options failed: ${data.error || 'Unknown error'}`)
+      }
+    } catch (error) {
+      console.error('Error executing Reset Options:', error)
+      setError('Failed to execute Reset Options. ESP32 may be offline.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   const washTypes = [
     { id: 1, name: '$10 Wash', description: 'Premium service with all features', duration: '8 min' },
     { id: 2, name: '$9 Wash', description: 'Deluxe service with premium features', duration: '6 min' },
@@ -416,6 +457,27 @@ export default function ControlPanel() {
                 <p className="text-xs text-gray-500 mt-2 text-center">
                   Reset clears all pending commands and triggers relay 5 for 500ms
                 </p>
+                
+                <div className="mt-4">
+                  <button
+                    onClick={resetOptions}
+                    disabled={loading || (!espOnline && !esp32Bypass)}
+                    className={`btn btn-warning btn-md w-full ${
+                      lastTriggered === 5 ? 'bg-green-600' : 
+                      (!espOnline && !esp32Bypass) ? 'bg-gray-400 cursor-not-allowed' : 'bg-orange-600 hover:bg-orange-700'
+                    }`}
+                  >
+                    {lastTriggered === 5 ? (
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                    ) : (
+                      <RotateCcw className="h-4 w-4 mr-2" />
+                    )}
+                    {lastTriggered === 5 ? 'Reset Options Complete' : 'Reset Options (1,2,3,4,6 → 5)'}
+                  </button>
+                  <p className="text-xs text-gray-500 mt-2 text-center">
+                    Clears relays 1,2,3,4,6 then triggers relay 5 for wash reset
+                  </p>
+                </div>
               </div>
             </div>
           </div>

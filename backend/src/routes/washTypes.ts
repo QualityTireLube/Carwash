@@ -133,20 +133,138 @@ router.put('/:id', validateWashType, async (req: Request, res: Response) => {
 router.delete('/:id', async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    const result = await db.query(
-      'DELETE FROM wash_types WHERE id = $1 RETURNING *',
+    
+    // First, check what references this wash type
+    const membershipCheck = await db.query(
+      'SELECT COUNT(*) as count FROM customer_memberships WHERE wash_type_id = $1',
       [id]
     );
+    
+    const sessionCheck = await db.query(
+      'SELECT COUNT(*) as count FROM wash_sessions WHERE wash_type_id = $1',
+      [id]
+    );
+    
+    const membershipCount = parseInt(membershipCheck.rows[0].count);
+    const sessionCount = parseInt(sessionCheck.rows[0].count);
+    
+    logger.info('Wash type deletion check:', { 
+      id, 
+      membershipCount, 
+      sessionCount 
+    });
+    
+    // Use a transaction to ensure atomicity
+    const client = await db.getClient();
+    
+    try {
+      await client.query('BEGIN');
+      
+      // Delete the wash type (this will cascade to customer_memberships due to ON DELETE CASCADE)
+      // Sessions will have their wash_type_id set to NULL due to ON DELETE SET NULL
+      const result = await client.query(
+        'DELETE FROM wash_types WHERE id = $1 RETURNING *',
+        [id]
+      );
 
-    if (result.rows.length === 0) {
-      return res.status(404).json({ error: 'Wash type not found' });
+      if (result.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return res.status(404).json({ error: 'Wash type not found' });
+      }
+
+      await client.query('COMMIT');
+      
+      logger.info('Wash type deleted successfully:', { 
+        id, 
+        deletedMemberships: membershipCount,
+        affectedSessions: sessionCount 
+      });
+      
+      return res.json({ 
+        message: 'Wash type deleted successfully',
+        details: {
+          deletedMemberships: membershipCount,
+          affectedSessions: sessionCount
+        }
+      });
+      
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
-
-    logger.info('Wash type deleted:', { id });
-    return res.json({ message: 'Wash type deleted successfully' });
+    
   } catch (error) {
     logger.error('Error deleting wash type:', error);
+    
+    // Check if it's a foreign key constraint error
+    if ((error as any).code === '23503') {
+      return res.status(409).json({ 
+        error: 'Cannot delete wash type due to existing references. Please remove all associated data first.',
+        details: 'This wash type is referenced by other records in the database.'
+      });
+    }
+    
     return res.status(500).json({ error: 'Failed to delete wash type' });
+  }
+});
+
+// Debug endpoint to check wash type references (for troubleshooting)
+router.get('/:id/debug', async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params;
+    
+    // Get wash type info
+    const washType = await db.query(
+      'SELECT * FROM wash_types WHERE id = $1',
+      [id]
+    );
+    
+    if (washType.rows.length === 0) {
+      return res.status(404).json({ error: 'Wash type not found' });
+    }
+    
+    // Get related memberships
+    const memberships = await db.query(`
+      SELECT cm.*, c.name as customer_name, c.email as customer_email
+      FROM customer_memberships cm
+      LEFT JOIN customers c ON cm.customer_id = c.id
+      WHERE cm.wash_type_id = $1
+    `, [id]);
+    
+    // Get related sessions
+    const sessions = await db.query(`
+      SELECT ws.*, c.name as customer_name, c.email as customer_email
+      FROM wash_sessions ws
+      LEFT JOIN customers c ON ws.customer_id = c.id
+      WHERE ws.wash_type_id = $1
+      LIMIT 10
+    `, [id]);
+    
+    // Get recent sessions count
+    const sessionCount = await db.query(
+      'SELECT COUNT(*) as count FROM wash_sessions WHERE wash_type_id = $1',
+      [id]
+    );
+    
+    return res.json({
+      washType: washType.rows[0],
+      relatedData: {
+        memberships: {
+          count: memberships.rows.length,
+          records: memberships.rows
+        },
+        sessions: {
+          total: parseInt(sessionCount.rows[0].count),
+          recent: sessions.rows
+        }
+      }
+    });
+    
+  } catch (error) {
+    logger.error('Error debugging wash type:', error);
+    return res.status(500).json({ error: 'Failed to debug wash type' });
   }
 });
 

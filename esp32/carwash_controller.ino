@@ -6,7 +6,8 @@
 #include <DNSServer.h>
 
 // Backend Configuration
-const char* backendUrl = "https://carwash-backend-5spn.onrender.com";
+String backendUrl = "https://carwash-backend-5spn.onrender.com"; // Default value
+String savedBackendUrl = "";
 
 // WiFi Manager Configuration
 const char* apSSID = "Wash Controller";
@@ -53,9 +54,41 @@ bool backendConnected = false;
 unsigned long lastConnectionCheck = 0;
 const unsigned long CONNECTION_CHECK_INTERVAL = 30000; // Check every 30 seconds
 
+// Activity logging
+struct LogEntry {
+  String timestamp;
+  String washType;
+  String source;
+  String deviceInfo;
+  String userName;
+  unsigned long triggerTime; // millis() when triggered
+};
+const int MAX_LOG_ENTRIES = 10;
+LogEntry activityLog[MAX_LOG_ENTRIES];
+int logIndex = 0;
+int logCount = 0;
+
+// Time management (for timestamps)
+unsigned long systemStartTime = 0;
+// Base date: July 21, 2025 (when system was deployed)
+int baseYear = 2025;
+int baseMonth = 7;
+int baseDay = 21;
+
+// Authentication
+bool isAuthenticated = false;
+const String validPasswords[3] = {"0123", "0987", "0321"};
+const String userNames[3] = {"Stephen", "Victor", "Liz"};
+String currentUser = "";
+unsigned long lastActivity = 0;
+const unsigned long SESSION_TIMEOUT = 1800000; // 30 minutes in milliseconds
+
 void setup() {
   Serial.begin(115200);
   Serial.println("\n=== ESP32 Car Wash Controller Starting ===");
+  
+  // Initialize system start time
+  systemStartTime = millis();
   
   // Initialize preferences
   preferences.begin("wifi-config", false);
@@ -63,6 +96,13 @@ void setup() {
   // Load saved WiFi credentials
   savedSSID = preferences.getString("ssid", "");
   savedPassword = preferences.getString("password", "");
+  
+  // Load saved backend URL
+  savedBackendUrl = preferences.getString("backend", "");
+  if (savedBackendUrl.length() > 0) {
+    backendUrl = savedBackendUrl;
+    Serial.printf("Loaded saved backend URL: %s\n", backendUrl.c_str());
+  }
   
   // Initialize relay pins
   for (int i = 0; i < NUM_RELAYS; i++) {
@@ -262,6 +302,130 @@ void pollBackendForCommands() {
   http.end();
 }
 
+bool checkAuthentication() {
+  if (!isAuthenticated) {
+    return false;
+  }
+  
+  // Check session timeout
+  if (millis() - lastActivity > SESSION_TIMEOUT) {
+    Serial.printf("Session expired - user %s logged out\n", currentUser.c_str());
+    isAuthenticated = false;
+    currentUser = "";
+    return false;
+  }
+  
+  // Update last activity
+  lastActivity = millis();
+  return true;
+}
+
+String validatePassword(String password) {
+  for (int i = 0; i < 3; i++) {
+    if (password == validPasswords[i]) {
+      return userNames[i];
+    }
+  }
+  return ""; // Empty string means invalid password
+}
+
+void calculateDate(unsigned long triggerTime, int &year, int &month, int &day, int &hour, int &minute) {
+  // Calculate elapsed seconds since system start
+  unsigned long elapsedSeconds = triggerTime / 1000;
+  unsigned long elapsedDays = elapsedSeconds / 86400;
+  
+  // Start with base date
+  year = baseYear;
+  month = baseMonth;
+  day = baseDay;
+  
+  // Add elapsed days
+  day += elapsedDays;
+  
+  // Days in each month (non-leap year)
+  int daysInMonth[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  
+  // Handle month/year overflow
+  while (day > daysInMonth[month - 1]) {
+    day -= daysInMonth[month - 1];
+    month++;
+    if (month > 12) {
+      month = 1;
+      year++;
+      // Update February for leap years
+      if (year % 4 == 0 && (year % 100 != 0 || year % 400 == 0)) {
+        daysInMonth[1] = 29;
+      } else {
+        daysInMonth[1] = 28;
+      }
+    }
+  }
+  
+  // Calculate hour and minute
+  unsigned long remainingSeconds = elapsedSeconds % 86400;
+  hour = remainingSeconds / 3600;
+  minute = (remainingSeconds % 3600) / 60;
+}
+
+String formatTimestamp(unsigned long triggerTime) {
+  int year, month, day, hour, minute;
+  calculateDate(triggerTime, year, month, day, hour, minute);
+  
+  // Format as MM/DD/YY HH:MM
+  String timestamp = "";
+  if (month < 10) timestamp += "0";
+  timestamp += String(month) + "/";
+  if (day < 10) timestamp += "0";
+  timestamp += String(day) + "/";
+  timestamp += String(year % 100);  // YY format
+  timestamp += " ";
+  if (hour < 10) timestamp += "0";
+  timestamp += String(hour) + ":";
+  if (minute < 10) timestamp += "0";
+  timestamp += String(minute);
+  
+  return timestamp;
+}
+
+String formatDuration(unsigned long triggerTime) {
+  unsigned long currentTime = millis();
+  unsigned long elapsed = (currentTime - triggerTime) / 1000;
+  
+  if (elapsed < 60) {
+    return String(elapsed) + "s ago";
+  } else if (elapsed < 3600) {
+    return String(elapsed / 60) + "m " + String(elapsed % 60) + "s ago";
+  } else {
+    return String(elapsed / 3600) + "h " + String((elapsed % 3600) / 60) + "m ago";
+  }
+}
+
+void addLogEntry(int relayId, String source, String deviceInfo, String userName = "") {
+  String washNames[NUM_RELAYS] = {"$10 Wash", "$9 Wash", "$8 Wash", "$7 Wash", "Reset Wash", "Spare"};
+  
+  unsigned long currentTime = millis();
+  
+  // Add to circular buffer
+  activityLog[logIndex].timestamp = formatTimestamp(currentTime);
+  activityLog[logIndex].triggerTime = currentTime;
+  
+  if (relayId == 0) {
+    activityLog[logIndex].washType = "All Relays Reset";
+  } else if (relayId >= 1 && relayId <= NUM_RELAYS) {
+    activityLog[logIndex].washType = washNames[relayId - 1];
+  } else {
+    activityLog[logIndex].washType = "Unknown";
+  }
+  activityLog[logIndex].source = source;
+  activityLog[logIndex].deviceInfo = deviceInfo;
+  activityLog[logIndex].userName = userName;
+  
+  logIndex = (logIndex + 1) % MAX_LOG_ENTRIES;
+  if (logCount < MAX_LOG_ENTRIES) {
+    logCount++;
+  }
+}
+
 void triggerRelayWithCommand(int relayId, String commandId, String source) {
   // Validate relay ID (1-6)
   if (relayId < 1 || relayId > NUM_RELAYS) {
@@ -278,6 +442,17 @@ void triggerRelayWithCommand(int relayId, String commandId, String source) {
   activeCommands[relayIndex].relayId = relayId;
   activeCommands[relayIndex].source = source;
   activeCommands[relayIndex].notificationSent = false;
+  
+  // Log the activity
+  String deviceInfo = "Backend";
+  String logUserName = "";
+  if (source == "local") {
+    deviceInfo = "ESP32 Web UI (" + WiFi.localIP().toString() + ")";
+    logUserName = currentUser; // Include current logged-in user for local triggers
+  } else if (source == "reset") {
+    deviceInfo = "Backend Reset";
+  }
+  addLogEntry(relayId, source, deviceInfo, logUserName);
   
   // Turn ON relay
   digitalWrite(pin, HIGH);
@@ -371,6 +546,7 @@ void setupWiFiConfigServer() {
   server.on("/scan", HTTP_GET, handleWiFiScan);
   server.on("/status", HTTP_GET, handleConfigStatus);
   server.on("/reset", HTTP_POST, handleConfigReset);
+  server.on("/backend", HTTP_POST, handleBackendConfigSave);
   
   // Captive portal - redirect all requests to config page
   server.onNotFound(handleWiFiConfigPage);
@@ -403,6 +579,16 @@ void setupWebServer() {
   server.on("/config", HTTP_POST, handleWiFiConfigSave);
   server.on("/scan", HTTP_GET, handleWiFiScan);
   
+  // Backend configuration
+  server.on("/backend", HTTP_POST, handleBackendConfigSave);
+  
+  // Authentication routes
+  server.on("/login", HTTP_POST, handleLogin);
+  server.on("/logout", HTTP_GET, handleLogout);
+  
+  // Settings page
+  server.on("/settings", HTTP_GET, handleSettings);
+  
   // 404 handler
   server.onNotFound([]() {
     server.send(404, "application/json", "{\"error\":\"Endpoint not found\"}");
@@ -413,8 +599,14 @@ void setupWebServer() {
 }
 
 void handleRoot() {
+  // Check authentication first
+  if (!checkAuthentication()) {
+    handleLoginPage();
+    return;
+  }
+  
   String html = "<!DOCTYPE html><html><head>";
-  html += "<title>Wash Controller</title>";
+  html += "<title>Controller</title>";
   html += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
   html += "<style>";
   html += "body { font-family: Arial; margin: 20px; background: #f0f0f0; }";
@@ -422,31 +614,122 @@ void handleRoot() {
   html += ".status { padding: 10px; margin: 10px 0; border-radius: 5px; }";
   html += ".online { background: #d4edda; color: #155724; }";
   html += ".offline { background: #f8d7da; color: #721c24; }";
-  html += ".btn { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; text-decoration: none; display: inline-block; margin: 5px; }";
+  html += ".btn { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; text-decoration: none; display: inline-block; margin: 5px; cursor: pointer; }";
   html += ".btn:hover { background: #0056b3; }";
+  html += ".btn:disabled { background: #6c757d; cursor: not-allowed; }";
+  html += ".wash-btn { background: #28a745; font-size: 16px; font-weight: bold; padding: 15px 25px; margin: 8px; min-width: 120px; }";
+  html += ".wash-btn:hover { background: #218838; }";
+  html += ".wash-btn:disabled { background: #6c757d; }";
+  html += ".wash-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin: 20px 0; }";
   html += ".danger { background: #dc3545; }";
   html += ".danger:hover { background: #c82333; }";
-  html += "</style></head><body>";
+  html += ".message { padding: 10px; margin: 10px 0; border-radius: 5px; text-align: center; }";
+  html += ".success { background: #d4edda; color: #155724; }";
+  html += ".error { background: #f8d7da; color: #721c24; }";
+  html += "</style>";
+  html += "<script>";
+  html += "function triggerWash(relayId) {";
+  html += "const washNames = ['$10 Wash', '$9 Wash', '$8 Wash', '$7 Wash', 'Reset Wash', 'Spare'];";
+  html += "const washName = washNames[relayId - 1];";
+  html += "const btn = document.getElementById('wash-' + relayId);";
+  html += "const originalText = btn.innerHTML;";
+  html += "btn.disabled = true;";
+  html += "btn.innerHTML = 'Triggering...';";
+  html += "showMessage('Triggering ' + washName + '...', 'success');";
+  html += "fetch('/trigger', {";
+  html += "method: 'POST',";
+  html += "headers: { 'Content-Type': 'application/json' },";
+  html += "body: JSON.stringify({ relay: relayId })";
+  html += "}).then(response => response.json()).then(data => {";
+  html += "if (data.success) {";
+  html += "showMessage(washName + ' activated for 500ms', 'success');";
+  html += "setTimeout(() => { location.reload(); }, 1000);"; // Refresh page to update log
+  html += "} else {";
+  html += "showMessage('Failed to trigger ' + washName, 'error');";
+  html += "}";
+  html += "btn.disabled = false;";
+  html += "btn.innerHTML = originalText;";
+  html += "}).catch(error => {";
+  html += "console.error('Error:', error);";
+  html += "showMessage('Network error triggering ' + washName, 'error');";
+  html += "btn.disabled = false;";
+  html += "btn.innerHTML = originalText;";
+  html += "});";
+  html += "}";
+  html += "function showMessage(text, type) {";
+  html += "const messageDiv = document.getElementById('message');";
+  html += "messageDiv.className = 'message ' + type;";
+  html += "messageDiv.innerHTML = text;";
+  html += "messageDiv.style.display = 'block';";
+  html += "setTimeout(() => { messageDiv.style.display = 'none'; }, 3000);";
+  html += "}";
+  html += "// Auto-refresh page every 30 seconds to update durations";
+  html += "setInterval(() => { if (!document.querySelector('button:disabled')) location.reload(); }, 30000);";
+  html += "</script>";
+  html += "</head><body>";
   html += "<div class=\"container\">";
-  html += "<h1>Wash Controller</h1>";
-  html += "<div class=\"status " + String(wifiConnected ? "online" : "offline") + "\">";
-  html += "WiFi: " + String(wifiConnected ? "Connected" : "Disconnected");
+  html += "<div style=\"display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;\">";
+  html += "<div>";
+  html += "<p style=\"margin: 0; color: #666; font-size: 14px;\">Logged in as: <strong>" + currentUser + "</strong></p>";
   html += "</div>";
-  html += "<div class=\"status " + String(backendConnected ? "online" : "offline") + "\">";
-  html += "Backend: " + String(backendConnected ? "Connected" : "Disconnected");
+  html += "<div>";
+  html += "<a href=\"/settings\" class=\"btn\" style=\"background: #28a745; margin-right: 10px;\">Settings</a>";
+  html += "<a href=\"/logout\" class=\"btn\" style=\"background: #6c757d;\">Logout</a>";
   html += "</div>";
-  html += "<p><strong>WiFi:</strong> " + WiFi.SSID() + "</p>";
-  html += "<p><strong>IP Address:</strong> " + WiFi.localIP().toString() + "</p>";
-  html += "<p><strong>Backend:</strong> " + String(backendUrl) + "</p>";
-  html += "<p><strong>Uptime:</strong> " + String(millis() / 1000) + " seconds</p>";
-  html += "<h2>Actions</h2>";
-  html += "<a href=\"/status\" class=\"btn\">System Status</a>";
-  html += "<a href=\"/config\" class=\"btn\">WiFi Config</a>";
-  html += "<a href=\"/scan\" class=\"btn\">Scan Networks</a>";
-  html += "<h2>Danger Zone</h2>";
-  html += "<form method=\"post\" action=\"/reset\" style=\"display: inline;\">";
-  html += "<button type=\"submit\" class=\"btn danger\" onclick=\"return confirm('Reset all relays?')\">Reset All Relays</button>";
-  html += "</form></div></body></html>";
+  html += "</div>";
+  html += "<div id=\"message\" class=\"message\" style=\"display: none;\"></div>";
+  
+  // WASH CONTROLS AT TOP
+  html += "<h2>Manual Wash Controls</h2>";
+  html += "<div class=\"wash-grid\">";
+  
+  // Define wash station names
+  String washNames[NUM_RELAYS] = {
+    "$10 Wash",
+    "$9 Wash", 
+    "$8 Wash",
+    "$7 Wash",
+    "Reset Wash",
+    "Spare"
+  };
+  
+  for (int i = 1; i <= NUM_RELAYS; i++) {
+    html += "<button id=\"wash-" + String(i) + "\" class=\"btn wash-btn\" onclick=\"triggerWash(" + String(i) + ")\">";
+    html += washNames[i-1] + "</button>";
+  }
+  html += "</div>";
+  
+  // ACTIVITY LOG
+  html += "<h2>Recent Activity Log</h2>";
+  html += "<div style=\"background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 5px; padding: 15px; margin: 15px 0; max-height: 300px; overflow-y: auto;\">";
+  if (logCount == 0) {
+    html += "<p style=\"color: #6c757d; text-align: center; margin: 0;\">No wash activity yet</p>";
+  } else {
+    html += "<table style=\"width: 100%; border-collapse: collapse; font-size: 13px;\">";
+    html += "<thead><tr style=\"background: #e9ecef;\">";
+    html += "<th style=\"padding: 6px; text-align: left; border-bottom: 1px solid #dee2e6; font-size: 12px;\">Timestamp</th>";
+    html += "<th style=\"padding: 6px; text-align: left; border-bottom: 1px solid #dee2e6; font-size: 12px;\">Duration</th>";
+    html += "<th style=\"padding: 6px; text-align: left; border-bottom: 1px solid #dee2e6; font-size: 12px;\">Wash Type</th>";
+    html += "<th style=\"padding: 6px; text-align: left; border-bottom: 1px solid #dee2e6; font-size: 12px;\">User</th>";
+    html += "<th style=\"padding: 6px; text-align: left; border-bottom: 1px solid #dee2e6; font-size: 12px;\">Source</th>";
+    html += "</tr></thead><tbody>";
+    
+    // Display log entries in reverse order (newest first)
+    for (int i = 0; i < logCount; i++) {
+      int displayIndex = (logIndex - 1 - i + MAX_LOG_ENTRIES) % MAX_LOG_ENTRIES;
+      html += "<tr>";
+      html += "<td style=\"padding: 4px 6px; border-bottom: 1px solid #f1f3f4; font-size: 11px;\">" + activityLog[displayIndex].timestamp + "</td>";
+      html += "<td style=\"padding: 4px 6px; border-bottom: 1px solid #f1f3f4; font-size: 11px; color: #666;\">" + formatDuration(activityLog[displayIndex].triggerTime) + "</td>";
+      html += "<td style=\"padding: 4px 6px; border-bottom: 1px solid #f1f3f4; font-weight: bold; font-size: 12px;\">" + activityLog[displayIndex].washType + "</td>";
+      String userDisplay = (activityLog[displayIndex].userName != "") ? activityLog[displayIndex].userName : "-";
+      html += "<td style=\"padding: 4px 6px; border-bottom: 1px solid #f1f3f4; font-weight: bold; color: #007bff; font-size: 12px;\">" + userDisplay + "</td>";
+      html += "<td style=\"padding: 4px 6px; border-bottom: 1px solid #f1f3f4; font-size: 11px;\">" + activityLog[displayIndex].source + "</td>";
+      html += "</tr>";
+    }
+    html += "</tbody></table>";
+  }
+  html += "</div>";
+  html += "</div></body></html>";
   
   server.send(200, "text/html", html);
 }
@@ -498,7 +781,7 @@ void handleWiFiConfigPage() {
   html += "</script>";
   html += "</head><body>";
   html += "<div class=\"container\">";
-  html += "<h1>Wash Controller WiFi Setup</h1>";
+  html += "<h1>WiFi Setup</h1>";
   
   if (isAccessPointMode) {
     html += "<div class=\"status info\">";
@@ -521,6 +804,14 @@ void handleWiFiConfigPage() {
   html += "<input type=\"password\" id=\"password\" name=\"password\" placeholder=\"Enter WiFi password\">";
   html += "</div>";
   html += "<button type=\"submit\" class=\"btn\">Save & Connect</button>";
+  html += "</form>";
+  html += "<h2>Backend Configuration</h2>";
+  html += "<form method=\"post\" action=\"/backend\">";
+  html += "<div class=\"form-group\">";
+  html += "<label for=\"backend-url\">Backend URL:</label>";
+  html += "<input type=\"url\" id=\"backend-url\" name=\"backend\" value=\"" + backendUrl + "\" placeholder=\"https://your-backend.com\" required>";
+  html += "</div>";
+  html += "<button type=\"submit\" class=\"btn\">Update Backend</button>";
   html += "</form>";
   html += "<div style=\"margin: 20px 0;\">";
   html += "<button type=\"button\" class=\"btn btn-secondary\" id=\"scan-btn\" onclick=\"scanNetworks()\">Scan Networks</button>";
@@ -657,6 +948,12 @@ void handleConfigReset() {
 }
 
 void handleGetStatus() {
+  // Check authentication for detailed status
+  if (!checkAuthentication()) {
+    server.send(401, "application/json", "{\"error\":\"Authentication required\"}");
+    return;
+  }
+  
   DynamicJsonDocument doc(1024);
   
   // System info
@@ -669,6 +966,7 @@ void handleGetStatus() {
   doc["wifi_rssi"] = WiFi.RSSI();
   doc["wifi_ip"] = WiFi.localIP().toString();
   doc["backend_url"] = backendUrl;
+  doc["saved_backend_url"] = savedBackendUrl;
   doc["config_mode"] = isConfigMode;
   doc["ap_mode"] = isAccessPointMode;
   
@@ -693,6 +991,12 @@ void handleGetStatus() {
 }
 
 void handleLocalTrigger() {
+  // Check authentication for protected actions
+  if (!checkAuthentication()) {
+    server.send(401, "application/json", "{\"error\":\"Authentication required\"}");
+    return;
+  }
+  
   String payload = server.arg("plain");
   DynamicJsonDocument doc(200);
   DeserializationError error = deserializeJson(doc, payload);
@@ -721,7 +1025,221 @@ void handleLocalTrigger() {
   server.send(200, "application/json", responseString);
 }
 
+void handleBackendConfigSave() {
+  // Check authentication for configuration changes
+  if (!checkAuthentication()) {
+    server.send(401, "text/html", "<h1>Authentication Required</h1><p><a href='/'>Login</a></p>");
+    return;
+  }
+  
+  String newBackendUrl = server.arg("backend");
+  
+  Serial.printf("Backend config received - URL: %s\n", newBackendUrl.c_str());
+  
+  if (newBackendUrl.length() > 0) {
+    // Save backend URL
+    preferences.putString("backend", newBackendUrl);
+    savedBackendUrl = newBackendUrl;
+    backendUrl = newBackendUrl;
+    
+    String html = "<!DOCTYPE html><html><head>";
+    html += "<title>Backend Updated</title>";
+    html += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
+    html += "<meta http-equiv=\"refresh\" content=\"3;url=/\">";
+    html += "<style>";
+    html += "body { font-family: Arial; margin: 0; padding: 20px; background: #f0f0f0; text-align: center; }";
+    html += ".container { max-width: 500px; margin: 50px auto; background: white; padding: 30px; border-radius: 10px; }";
+    html += "</style></head><body>";
+    html += "<div class=\"container\">";
+    html += "<h2>Backend URL Updated</h2>";
+    html += "<p>New Backend: <strong>" + newBackendUrl + "</strong></p>";
+    html += "<p>Configuration saved successfully!</p>";
+    html += "<p>Redirecting to main page in 3 seconds...</p>";
+    html += "</div></body></html>";
+    
+    server.send(200, "text/html", html);
+    
+    Serial.printf("Backend URL updated to: %s\n", backendUrl.c_str());
+  } else {
+    server.send(400, "text/html", "<h1>Error: Backend URL cannot be empty</h1>");
+  }
+}
+
+void handleLoginPage() {
+  String html = "<!DOCTYPE html><html><head>";
+  html += "<title>Login</title>";
+  html += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
+  html += "<style>";
+  html += "body { font-family: Arial; margin: 0; padding: 20px; background: #f0f0f0; }";
+  html += ".container { max-width: 400px; margin: 100px auto; background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }";
+  html += "h1 { color: #333; margin-bottom: 30px; }";
+  html += ".form-group { margin-bottom: 20px; }";
+  html += "label { display: block; margin-bottom: 8px; font-weight: bold; color: #555; }";
+  html += "input[type='password'] { width: 200px; padding: 15px; border: 2px solid #ddd; border-radius: 8px; font-size: 18px; text-align: center; letter-spacing: 8px; }";
+  html += "input[type='password']:focus { outline: none; border-color: #007bff; }";
+  html += ".btn { background: #007bff; color: white; padding: 15px 30px; border: none; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; }";
+  html += ".btn:hover { background: #0056b3; }";
+  html += ".error { background: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin-bottom: 20px; }";
+  html += ".lock-icon { font-size: 48px; color: #007bff; margin-bottom: 20px; }";
+  html += "</style></head><body>";
+  html += "<div class=\"container\">";
+  html += "<form method=\"post\" action=\"/login\">";
+  html += "<div class=\"form-group\">";
+  html += "<label for=\"password\">Password:</label>";
+  html += "<input type=\"password\" id=\"password\" name=\"password\" maxlength=\"4\" pattern=\"[0-9]{4}\" required autofocus>";
+  html += "</div>";
+  html += "<button type=\"submit\" class=\"btn\">Login</button>";
+  html += "</form>";
+  html += "<script>";
+  html += "document.getElementById('password').addEventListener('input', function(e) {";
+  html += "e.target.value = e.target.value.replace(/[^0-9]/g, '');";
+  html += "if (e.target.value.length === 4) { e.target.form.submit(); }";
+  html += "});";
+  html += "</script>";
+  html += "</div></body></html>";
+  
+  server.send(200, "text/html", html);
+}
+
+void handleLogin() {
+  String password = server.arg("password");
+  String userName = validatePassword(password);
+  
+  if (userName != "") {
+    isAuthenticated = true;
+    currentUser = userName;
+    lastActivity = millis();
+    Serial.printf("User %s authenticated with password: %s\n", userName.c_str(), password.c_str());
+    
+    // Redirect to main page
+    server.sendHeader("Location", "/");
+    server.send(302, "text/plain", "");
+  } else {
+    Serial.printf("Failed login attempt with password: %s\n", password.c_str());
+    
+    // Show login page with error
+    String html = "<!DOCTYPE html><html><head>";
+    html += "<title>Login Failed</title>";
+    html += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
+    html += "<meta http-equiv=\"refresh\" content=\"3;url=/\">";
+    html += "<style>";
+    html += "body { font-family: Arial; margin: 0; padding: 20px; background: #f0f0f0; }";
+    html += ".container { max-width: 400px; margin: 100px auto; background: white; padding: 40px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); text-align: center; }";
+    html += ".error { background: #f8d7da; color: #721c24; padding: 15px; border-radius: 5px; margin-bottom: 20px; font-weight: bold; }";
+    html += "</style></head><body>";
+    html += "<div class=\"container\">";
+    html += "<h1>Login Failed</h1>";
+    html += "<div class=\"error\">Invalid password. Please try again.</div>";
+    html += "<p>Redirecting to login page in 3 seconds...</p>";
+    html += "</div></body></html>";
+    
+    server.send(401, "text/html", html);
+  }
+}
+
+void handleLogout() {
+  Serial.printf("User %s logged out\n", currentUser.c_str());
+  isAuthenticated = false;
+  currentUser = "";
+  
+  // Redirect to login page
+  server.sendHeader("Location", "/");
+  server.send(302, "text/plain", "");
+}
+
+void handleSettings() {
+  // Check authentication first
+  if (!checkAuthentication()) {
+    handleLoginPage();
+    return;
+  }
+  
+  String html = "<!DOCTYPE html><html><head>";
+  html += "<title>Settings</title>";
+  html += "<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">";
+  html += "<style>";
+  html += "body { font-family: Arial; margin: 20px; background: #f0f0f0; }";
+  html += ".container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 10px; }";
+  html += ".status { padding: 10px; margin: 10px 0; border-radius: 5px; }";
+  html += ".online { background: #d4edda; color: #155724; }";
+  html += ".offline { background: #f8d7da; color: #721c24; }";
+  html += ".btn { background: #007bff; color: white; padding: 10px 20px; border: none; border-radius: 5px; text-decoration: none; display: inline-block; margin: 5px; cursor: pointer; }";
+  html += ".btn:hover { background: #0056b3; }";
+  html += ".btn:disabled { background: #6c757d; cursor: not-allowed; }";
+  html += ".danger { background: #dc3545; }";
+  html += ".danger:hover { background: #c82333; }";
+  html += ".back-btn { background: #6c757d; }";
+  html += ".back-btn:hover { background: #545b62; }";
+  html += "</style></head><body>";
+  html += "<div class=\"container\">";
+  
+  // Header with back button
+  html += "<div style=\"display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;\">";
+  html += "<div>";
+  html += "<h1 style=\"margin: 0;\">Settings</h1>";
+  html += "<p style=\"margin: 5px 0 0 0; color: #666; font-size: 14px;\">Logged in as: <strong>" + currentUser + "</strong></p>";
+  html += "</div>";
+  html += "<div>";
+  html += "<a href=\"/\" class=\"btn back-btn\">Back to Controls</a>";
+  html += "<a href=\"/logout\" class=\"btn danger\" style=\"margin-left: 10px;\">Logout</a>";
+  html += "</div>";
+  html += "</div>";
+  
+  // SYSTEM STATUS
+  html += "<h2>System Status</h2>";
+  html += "<div class=\"status " + String(wifiConnected ? "online" : "offline") + "\">";
+  html += "WiFi: " + String(wifiConnected ? "Connected" : "Disconnected");
+  html += "</div>";
+  html += "<div class=\"status " + String(backendConnected ? "online" : "offline") + "\">";
+  html += "Backend: " + String(backendConnected ? "Connected" : "Disconnected");
+  html += "</div>";
+  html += "<p><strong>WiFi:</strong> " + WiFi.SSID() + "</p>";
+  html += "<p><strong>IP Address:</strong> " + WiFi.localIP().toString() + "</p>";
+  html += "<p><strong>Backend:</strong> " + backendUrl + "</p>";
+  html += "<p><strong>Uptime:</strong> " + String(millis() / 1000) + " seconds</p>";
+  
+  // Session info
+  unsigned long sessionTime = (millis() - lastActivity) / 1000;
+  unsigned long sessionRemaining = (SESSION_TIMEOUT - (millis() - lastActivity)) / 1000;
+  html += "<p><strong>Current User:</strong> " + currentUser + "</p>";
+  html += "<p><strong>Session:</strong> " + String(sessionRemaining / 60) + "m " + String(sessionRemaining % 60) + "s remaining</p>";
+  
+  // BACKEND CONFIGURATION
+  html += "<h2>Backend Configuration</h2>";
+  html += "<form method=\"post\" action=\"/backend\">";
+  html += "<div style=\"margin-bottom: 15px;\">";
+  html += "<label for=\"backend-url\" style=\"display: block; margin-bottom: 5px; font-weight: bold;\">Backend URL:</label>";
+  html += "<input type=\"url\" id=\"backend-url\" name=\"backend\" value=\"" + backendUrl + "\" ";
+  html += "style=\"width: calc(100% - 110px); padding: 8px; border: 1px solid #ddd; border-radius: 3px; font-size: 14px;\" ";
+  html += "placeholder=\"https://your-backend.com\" required>";
+  html += "<button type=\"submit\" class=\"btn\" style=\"margin-left: 10px; padding: 8px 15px;\">Update</button>";
+  html += "</div>";
+  html += "</form>";
+  
+  // SYSTEM ACTIONS
+  html += "<h2>System Actions</h2>";
+  html += "<a href=\"/status\" class=\"btn\">System Status</a>";
+  html += "<a href=\"/config\" class=\"btn\">WiFi Config</a>";
+  html += "<a href=\"/scan\" class=\"btn\">Scan Networks</a>";
+  
+  // DANGER ZONE
+  html += "<h2>Danger Zone</h2>";
+  html += "<form method=\"post\" action=\"/reset\" style=\"display: inline;\">";
+  html += "<button type=\"submit\" class=\"btn danger\" onclick=\"return confirm('Reset all relays?')\">Reset All Relays</button>";
+  html += "</form>";
+  
+  html += "</div></body></html>";
+  
+  server.send(200, "text/html", html);
+}
+
 void handleReset() {
+  // Check authentication for protected actions
+  if (!checkAuthentication()) {
+    server.send(401, "application/json", "{\"error\":\"Authentication required\"}");
+    return;
+  }
+  
   // Turn off all relays immediately
   for (int i = 0; i < NUM_RELAYS; i++) {
     digitalWrite(relayPins[i], LOW);
@@ -734,6 +1252,9 @@ void handleReset() {
     activeCommands[i].source = "";
     activeCommands[i].notificationSent = true;
   }
+  
+  // Log the reset activity
+  addLogEntry(0, "reset", "ESP32 Web UI (" + WiFi.localIP().toString() + ")", currentUser);
   
   Serial.println("LOCAL RESET: All relays reset to OFF");
   server.send(200, "application/json", "{\"success\":true,\"message\":\"All relays reset locally\"}");

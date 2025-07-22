@@ -332,6 +332,56 @@ router.post('/reset', async (req: Request, res: Response) => {
   }
 });
 
+// NEW: Reset Options endpoint - clears specific relays then triggers relay 5
+router.post('/reset-options', async (req: Request, res: Response) => {
+  try {
+    logger.info('Reset Options command received - clearing relays 1,2,3,4,6 then triggering relay 5');
+    
+    // Clear pending commands for relays 1, 2, 3, 4, 6 specifically
+    const relaysToReset = [1, 2, 3, 4, 6];
+    const originalCommandCount = pendingCommands.length;
+    
+    // Remove pending commands for the specified relays
+    pendingCommands = pendingCommands.filter(cmd => !relaysToReset.includes(cmd.relayId));
+    const clearedCommands = originalCommandCount - pendingCommands.length;
+    
+    // Clear spam protection timers for the specified relays
+    relaysToReset.forEach(relayId => {
+      if (lastCommandTimes[relayId]) {
+        delete lastCommandTimes[relayId];
+      }
+    });
+    
+    // Queue relay 5 (reset relay) with highest priority
+    const result = queueCommand(5, 'reset', 10); // Highest priority
+    
+    if (!result.success) {
+      return res.status(500).json({ 
+        error: 'Failed to queue reset command',
+        details: result.error
+      });
+    }
+    
+    logger.info(`Reset Options initiated: Cleared ${clearedCommands} commands for relays [${relaysToReset.join(',')}], queued relay 5 trigger`);
+    
+    return res.json({ 
+      success: true, 
+      message: 'Reset Options initiated - relays 1,2,3,4,6 cleared, relay 5 will trigger for 500ms',
+      clearedRelays: relaysToReset,
+      clearedCommands,
+      resetCommandId: result.command!.id,
+      timestamp: new Date().toISOString()
+    });
+    
+  } catch (error) {
+    logger.error('Error processing reset options command:', error);
+    return res.status(500).json({ 
+      error: 'Failed to process reset options command',
+      details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
+    });
+  }
+});
+
 // Get relay status - now based on ESP32 polling activity
 router.get('/status', async (req: Request, res: Response) => {
   try {

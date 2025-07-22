@@ -10,6 +10,7 @@ const washes = [
   { label: "$8 Wash", id: 3 },
   { label: "$7 Wash", id: 4 },
   { label: "Reset System", id: 5 },
+  { label: "Reset Options", id: 7 }, // New Reset Options
   { label: "Spare", id: 6 },
 ];
 
@@ -117,6 +118,22 @@ export default function WashButtons() {
         } else {
           const data = await response.json();
           setError(`Reset failed: ${data.error || 'Unknown error'}`);
+        }
+      } else if (id === 7) {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/trigger/reset-options`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setError(`✅ ${data.message}`);
+          setTimeout(() => setError(null), 5000);
+        } else {
+          const data = await response.json();
+          setError(`Reset Options failed: ${data.error || 'Unknown error'}`);
         }
       } else {
         // Regular relay trigger

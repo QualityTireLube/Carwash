@@ -566,4 +566,56 @@ router.post('/add-rfid-column', async (req: Request, res: Response) => {
   }
 });
 
+// Test wash type deletion
+router.post('/test-wash-type-deletion', async (req: Request, res: Response) => {
+  try {
+    logger.info('Testing wash type deletion...');
+    
+    // Create a test wash type
+    const testWashType = await db.query(`
+      INSERT INTO wash_types (name, description, duration, price, relay_id, is_active)
+      VALUES ('Test Deletion Wash', 'Test wash type for deletion testing', 120, 9.99, 1, true)
+      RETURNING id, name
+    `);
+    
+    const washTypeId = testWashType.rows[0].id;
+    const washTypeName = testWashType.rows[0].name;
+    
+    logger.info('Created test wash type:', { id: washTypeId, name: washTypeName });
+    
+    // Try to delete it immediately
+    const deleteResult = await db.query(
+      'DELETE FROM wash_types WHERE id = $1 RETURNING *',
+      [washTypeId]
+    );
+    
+    if (deleteResult.rows.length > 0) {
+      logger.info('✅ Test wash type deleted successfully');
+      return res.json({
+        success: true,
+        message: 'Wash type deletion test passed',
+        testResults: {
+          created: washTypeName,
+          deleted: true,
+          deletedCount: deleteResult.rows.length
+        }
+      });
+    } else {
+      logger.error('❌ Test wash type deletion failed - no rows affected');
+      return res.status(500).json({
+        success: false,
+        message: 'Wash type deletion test failed - no rows deleted'
+      });
+    }
+    
+  } catch (error) {
+    logger.error('❌ Test wash type deletion failed:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Wash type deletion test failed',
+      error: (error as Error).message
+    });
+  }
+});
+
 export default router; 
