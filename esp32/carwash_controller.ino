@@ -33,7 +33,7 @@ bool isConfigMode = false;
 
 // Timing variables
 unsigned long lastPollTime = 0;
-const unsigned long POLL_INTERVAL = 10000; // Poll every 10 seconds (direct calls handle frontend, polling for RFID/background)
+const unsigned long POLL_INTERVAL = 1000; // Poll every 1 second (ultra-responsive for RFID, direct calls still handle frontend)
 
 // Relay states for status tracking
 bool relayStates[NUM_RELAYS] = {false, false, false, false, false, false};

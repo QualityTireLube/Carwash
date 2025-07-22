@@ -11,23 +11,25 @@ The backend provides:
 - **PostgreSQL Database** operations
 - **Real-time Relay Control** with spam protection
 
-## 🔄 ESP32 Communication System
+## 🔧 Hybrid ESP32 Communication System
 
-### Hybrid Architecture
+This backend implements a sophisticated dual-mode communication system with the ESP32:
 
-The backend uses a **dual-mode communication system** for optimal performance:
+### **Architecture Overview**
 
-#### **Mode 1: Direct HTTP Calls** ⚡
-- **Use Case**: Frontend manual triggers
-- **Latency**: ~100ms 
-- **Method**: Backend → ESP32 HTTP endpoint
-- **Benefits**: Instant user feedback
+#### **1. Polling System (Background Operations)**
+- **Frequency**: Every 1 second
+- **Purpose**: RFID detection, background commands, system monitoring
+- **Endpoint**: `GET /api/trigger/poll`
+- **Rate Limit**: 80 requests/minute (33% buffer for 60 req/min)
+- **Timeout**: ESP32 considered offline after 5 seconds (5 missed polls)
 
-#### **Mode 2: Polling System** 🔄  
-- **Use Case**: RFID scans, background tasks
-- **Latency**: 0-10 seconds
-- **Method**: ESP32 polls backend every 10s
-- **Benefits**: Reliable background processing
+#### **2. Direct HTTP Calls (Frontend Operations)**  
+- **Latency**: ~100ms response time
+- **Purpose**: Instant manual wash triggers from admin panel
+- **Method**: Backend makes direct `axios.post()` to ESP32's local IP
+- **Endpoint**: `http://{esp32-ip}/trigger`
+- **Fallback**: Commands automatically queued if direct call fails
 
 ### Communication Flow
 

@@ -41,7 +41,7 @@ A full-stack web application for controlling a car wash system using a Waveshare
 ### ESP32
 - **Dual Communication Modes**:
   - **Direct HTTP Endpoints**: Instant response for frontend triggers
-  - **Polling System**: Background command checking every 10 seconds
+  - **Polling System**: Background command checking every 1 second
 - 6-channel relay management with precise timing
 - 500ms relay cycles with automatic shutoff
 - WiFi auto-configuration with captive portal

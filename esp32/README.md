@@ -373,36 +373,23 @@ Content-Type: application/json
 - **System Reset**: Emergency stop all relays
 - **Status Monitoring**: Live relay state updates
 
-## 🔄 Backend Integration
-
-### System Architecture
-
-```
-[Frontend] → [Backend] ────────→ [ESP32] → [Relays] → [Car Wash Equipment]
-     ↑           ↓               ↗ Direct      ↓
-   Web UI    Command        (Instant)    Polling
-            Queue          HTTP Call    (10 seconds)
-```
+## 🔌 Backend Integration
 
 ### Hybrid Communication Protocol
 
-#### **Method 1: Direct Calls (Frontend Triggers)**
-1. **Frontend** triggers wash via backend API
-2. **Backend** attempts direct HTTP call to ESP32
-3. **ESP32** responds immediately and triggers relay
-4. **Total latency: ~100ms** ⚡
+The ESP32 uses a sophisticated dual-mode communication system:
 
-#### **Method 2: Polling System (RFID/Background)**
-1. **RFID/Backend** queues commands via backend API
-2. **Backend** stores commands with priority and spam protection
-3. **ESP32** polls backend every 10 seconds for pending commands
-4. **ESP32** executes relay control and reports completion
-5. **Maximum latency: 10 seconds**
+#### **1. Polling System (Background)**
+- **Interval**: Every 1 second
+- **Purpose**: Ultra-responsive RFID detection and background commands
+- **Endpoint**: `GET /api/trigger/poll`
+- **Rate Limit**: 80 requests/minute (with 33% buffer)
 
-#### **Automatic Fallback**
-- Direct call fails? → **Backend queues command for polling**
-- ESP32 offline? → **Commands wait in queue**
-- Network issues? → **Seamless recovery when connection restored**
+#### **2. Direct HTTP Calls (Frontend)**
+- **Latency**: ~100ms response time  
+- **Purpose**: Instant manual wash triggers
+- **Method**: Backend → ESP32 direct communication
+- **Fallback**: Automatic queue if direct call fails
 
 ### Error Handling
 
@@ -457,29 +444,26 @@ Content-Type: application/json
 
 ### System Specifications
 
-| Parameter | Value |
-|-----------|--------|
-| **Polling Frequency** | 10 seconds (RFID/background only) |
-| **Direct Call Response** | ~100ms (frontend triggers) |
-| **Relay Trigger Duration** | 500ms |
-| **Command Timeout** | 5 seconds |
-| **WiFi Reconnect Attempts** | 20 attempts |
-| **Memory Usage** | ~200KB program, ~50KB RAM |
-| **HTTP Timeout** | 5 seconds |
+**Timing Configuration:**
+- Polling Interval: 1000ms (1 second)
+- Relay Duration: 500ms per activation
+- WiFi Timeout: 30 seconds for connection
+- Backend Timeout: 10 seconds per HTTP request
+- Offline Threshold: 5000ms (5 missed polls)
 
 ### Performance Metrics
 
-| Trigger Type | Response Time | Method | Notes |
-|-------------|---------------|---------|-------|
-| **Frontend Manual** | ~100ms | Direct HTTP call | Instant user feedback ⚡ |
-| **RFID Activation** | 0-10 seconds | Polling system | Background processing |
-| **Wash Sessions** | 0-10 seconds | Polling system | Automated scheduling |
-| **System Reset** | ~100ms or 0-10s | Direct + Polling | Emergency commands |
+**Response Times:**
+- Frontend Triggers: ~100ms (via direct calls)
+- RFID Detection: ~1 second (via polling)
+- System Recovery: ~2-3 seconds
+- Offline Detection: 5 seconds (5 missed polls)
 
-- **Reliability**: 99.9%+ uptime with proper power supply
-- **Concurrent Relays**: All 6 relays can operate simultaneously
-- **Backend Efficiency**: 50% fewer polls (10s vs 3s intervals)
-- **User Experience**: 30x faster frontend response
+**Network Efficiency:**
+- ESP32 Polls: 60 requests/minute (1-second interval)
+- Rate Limit: 80 requests/minute (33% buffer)
+- Request Success: >99.5% uptime
+- Bandwidth: ~2KB per poll cycle
 
 ### Safety Features
 

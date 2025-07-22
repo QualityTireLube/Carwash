@@ -88,7 +88,7 @@ app.use(limiter);
 // More restrictive rate limiting for ESP32 polling endpoint
 const esp32Limiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 15, // Allow 15 requests per minute (for 10s polling interval with buffer)
+  max: 80, // Allow 80 requests per minute (for 1s polling interval with buffer)
   message: {
     error: 'ESP32 polling rate limit exceeded',
     retryAfter: '1 minute'

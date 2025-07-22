@@ -23,9 +23,8 @@ const COMMAND_COOLDOWN = 2000; // 2 seconds between commands for same relay
 
 // ESP32 polling tracking
 let lastEsp32PollTime = 0;
-const ESP32_POLL_TIMEOUT = 25000; // Consider ESP32 offline if no poll for 25 seconds (2.5 missed 10s polls)
-
-// ESP32 direct communication configuration
+// ESP32 communication configuration
+const ESP32_POLL_TIMEOUT = 5000; // Consider ESP32 offline if no poll for 5 seconds (5 missed 1s polls)
 const ESP32_DIRECT_TIMEOUT = 2000; // 2 second timeout for direct calls
 let lastKnownEsp32IP: string | null = null;
 
@@ -582,38 +581,20 @@ router.get('/test', async (req: Request, res: Response) => {
 });
 
 // NEW: Get pending commands queue status (for debugging)
-router.get('/queue', async (req: Request, res: Response) => {
-  try {
-    const now = Date.now();
-    const timeSinceLastPoll = now - lastEsp32PollTime;
-    
-    return res.json({
-      success: true,
-      esp32Online: isEsp32Online(),
-      lastPollTime: lastEsp32PollTime,
-      timeSinceLastPoll: timeSinceLastPoll,
-      lastKnownIP: lastKnownEsp32IP,
-      directCallsEnabled: !!lastKnownEsp32IP,
-      pollingInterval: '10 seconds',
-      pendingCommands: pendingCommands.length,
-      commands: pendingCommands.map(cmd => ({
-        id: cmd.id,
-        relayId: cmd.relayId,
-        source: cmd.source,
-        priority: cmd.priority,
-        age: now - cmd.timestamp
-      })),
-      spamProtection: Object.entries(lastCommandTimes).map(([relayId, time]) => ({
-        relayId: parseInt(relayId),
-        lastCommandTime: time,
-        cooldownRemaining: Math.max(0, COMMAND_COOLDOWN - (now - time))
-      })),
-      timestamp: new Date().toISOString()
-    });
-  } catch (error) {
-    logger.error('Error getting queue status:', error);
-    return res.status(500).json({ error: 'Failed to get queue status' });
-  }
+router.get('/queue', (req: Request, res: Response) => {
+  const queueInfo = {
+    pendingCommands: pendingCommands.length,
+    commands: pendingCommands,
+    lastPollTime: lastEsp32PollTime ? new Date(lastEsp32PollTime).toISOString() : null,
+    isOnline: isEsp32Online(),
+    timeSinceLastPoll: lastEsp32PollTime ? Date.now() - lastEsp32PollTime : null,
+    lastKnownIP: lastKnownEsp32IP,
+    directCallsEnabled: !!lastKnownEsp32IP,
+    pollingInterval: "1 second",
+    hybridSystemActive: true
+  };
+  
+  res.json(queueInfo);
 });
 
 export default router; 
