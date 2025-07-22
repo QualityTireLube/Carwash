@@ -97,6 +97,90 @@ export async function testConnection() {
   }
 }
 
+// Enhanced ESP32 diagnostic function
+export async function diagnoseEsp32Connection() {
+  const results = {
+    testEndpoint: null as any,
+    statusEndpoint: null as any,
+    queueEndpoint: null as any,
+    pollEndpoint: null as any,
+    timestamp: new Date().toISOString(),
+    summary: {
+      overall: 'unknown' as 'online' | 'offline' | 'unknown',
+      issues: [] as string[]
+    }
+  };
+
+  try {
+    // Test /api/trigger/test endpoint
+    const testResponse = await fetch(`${API_BASE_URL}/api/trigger/test`);
+    results.testEndpoint = {
+      status: testResponse.status,
+      ok: testResponse.ok,
+      data: testResponse.ok ? await testResponse.json() : await testResponse.text()
+    };
+  } catch (error) {
+    results.testEndpoint = { error: (error as Error).message };
+    results.summary.issues.push('Test endpoint unreachable');
+  }
+
+  try {
+    // Test /api/trigger/status endpoint
+    const statusResponse = await fetch(`${API_BASE_URL}/api/trigger/status`);
+    results.statusEndpoint = {
+      status: statusResponse.status,
+      ok: statusResponse.ok,
+      data: statusResponse.ok ? await statusResponse.json() : await statusResponse.text()
+    };
+  } catch (error) {
+    results.statusEndpoint = { error: (error as Error).message };
+    results.summary.issues.push('Status endpoint unreachable');
+  }
+
+  try {
+    // Test /api/trigger/queue endpoint (for debugging)
+    const queueResponse = await fetch(`${API_BASE_URL}/api/trigger/queue`);
+    results.queueEndpoint = {
+      status: queueResponse.status,
+      ok: queueResponse.ok,
+      data: queueResponse.ok ? await queueResponse.json() : await queueResponse.text()
+    };
+  } catch (error) {
+    results.queueEndpoint = { error: (error as Error).message };
+    results.summary.issues.push('Queue endpoint unreachable');
+  }
+
+  try {
+    // Test /api/trigger/poll endpoint (what ESP32 uses)
+    const pollResponse = await fetch(`${API_BASE_URL}/api/trigger/poll`);
+    results.pollEndpoint = {
+      status: pollResponse.status,
+      ok: pollResponse.ok,
+      data: pollResponse.ok ? await pollResponse.json() : await pollResponse.text()
+    };
+  } catch (error) {
+    results.pollEndpoint = { error: (error as Error).message };
+    results.summary.issues.push('Poll endpoint unreachable');
+  }
+
+  // Determine overall status
+  const testSuccess = results.testEndpoint?.ok && results.testEndpoint?.data?.success;
+  const statusSuccess = results.statusEndpoint?.ok;
+  const hasRecentPoll = results.queueEndpoint?.data?.esp32Online;
+
+  if (testSuccess && statusSuccess && hasRecentPoll) {
+    results.summary.overall = 'online';
+  } else if (results.testEndpoint?.status === 503 || results.statusEndpoint?.status === 503) {
+    results.summary.overall = 'offline';
+    results.summary.issues.push('Backend reports ESP32 offline (no recent polling activity)');
+  } else {
+    results.summary.overall = 'unknown';
+    results.summary.issues.push('Unable to determine ESP32 status');
+  }
+
+  return results;
+}
+
 export async function getCustomers() {
   try {
     return await apiRequest(`${API_BASE_URL}/api/customers`);

@@ -216,16 +216,24 @@ export default function ControlPanel() {
         {/* ESP32 Status Banner */}
         {!espOnline && !esp32Bypass && (
           <div className="mb-6 bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-            <div className="flex items-center">
-              <XCircle className="h-5 w-5 text-yellow-400 mr-3" />
-              <div>
-                <h3 className="text-sm font-medium text-yellow-800">
-                  ESP32 Controller Offline
-                </h3>
-                <p className="text-sm text-yellow-700 mt-1">
-                  The ESP32 hardware controller is not connected. Relay controls are disabled until connection is restored.
-                </p>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center">
+                <XCircle className="h-5 w-5 text-yellow-400 mr-3" />
+                <div>
+                  <h3 className="text-sm font-medium text-yellow-800">
+                    ESP32 Controller Offline
+                  </h3>
+                  <p className="text-sm text-yellow-700 mt-1">
+                    The ESP32 hardware controller is not connected. Relay controls are disabled until connection is restored.
+                  </p>
+                </div>
               </div>
+              <button
+                onClick={fetchSystemStatus}
+                className="btn btn-sm bg-yellow-600 hover:bg-yellow-700 text-white"
+              >
+                Retry Connection
+              </button>
             </div>
           </div>
         )}
@@ -260,7 +268,16 @@ export default function ControlPanel() {
 
         {/* System Status */}
         <div className="card p-6 mb-8">
-          <h2 className="text-xl font-semibold text-gray-900 mb-4">System Status</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-xl font-semibold text-gray-900">System Status</h2>
+            <button
+              onClick={fetchSystemStatus}
+              className="btn btn-sm bg-blue-600 hover:bg-blue-700 text-white"
+              disabled={loading}
+            >
+              {loading ? 'Checking...' : 'Refresh Status'}
+            </button>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="flex items-center space-x-3">
               <div className={`w-3 h-3 rounded-full ${systemStatus?.system === 'online' ? 'bg-green-500' : 'bg-red-500'}`}></div>

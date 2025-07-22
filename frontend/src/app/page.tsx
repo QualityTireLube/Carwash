@@ -23,7 +23,7 @@ export default function Dashboard() {
   })
 
   useEffect(() => {
-    // Fetch dashboard stats
+    // Fetch dashboard stats initially
     const fetchStats = async () => {
       try {
         // Check if we have a proper API URL in production
@@ -58,9 +58,25 @@ export default function Dashboard() {
       }
     }
 
+    // Enhanced ESP32 status monitoring
+    const fetchEsp32Status = async () => {
+      try {
+        const statusRes = await testConnection();
+        const espStatus = statusRes.success ? 'online' : 'offline';
+        setStats(prev => ({ ...prev, systemStatus: espStatus }));
+      } catch (error) {
+        setStats(prev => ({ ...prev, systemStatus: 'offline' }));
+      }
+    };
+
     // Only fetch if we're in the browser
     if (typeof window !== 'undefined') {
-      fetchStats()
+      fetchStats();
+      
+      // Set up continuous ESP32 status monitoring every 20 seconds
+      const statusInterval = setInterval(fetchEsp32Status, 20000);
+      
+      return () => clearInterval(statusInterval);
     }
   }, [])
 

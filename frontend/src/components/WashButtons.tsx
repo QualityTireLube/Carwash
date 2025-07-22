@@ -44,9 +44,15 @@ export default function WashButtons() {
     }
   }, []);
 
+  // Enhanced ESP32 status monitoring
   useEffect(() => {
-    // Check ESP32 status on component mount
+    // Check ESP32 status immediately
     checkEspStatus();
+    
+    // Set up continuous monitoring every 15 seconds
+    const statusInterval = setInterval(checkEspStatus, 15000);
+    
+    return () => clearInterval(statusInterval);
   }, []);
 
   // Update cooldown timers every second
@@ -68,6 +74,10 @@ export default function WashButtons() {
     try {
       const status = await testConnection();
       setEspOnline(status.success);
+      // Clear any previous connection errors when ESP32 comes back online
+      if (status.success && error?.includes('ESP32')) {
+        setError(null);
+      }
     } catch (error) {
       setEspOnline(false);
     }

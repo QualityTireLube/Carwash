@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { Settings, ArrowLeft, Play, CheckCircle, XCircle, Clock, AlertTriangle, RotateCcw, Database, TestTube, Bug } from 'lucide-react'
+import { Settings, ArrowLeft, Play, CheckCircle, XCircle, Clock, AlertTriangle, RotateCcw, Database, TestTube, Bug, FileText, Loader } from 'lucide-react'
 import Link from 'next/link'
-import { getTestSuites, runAllTests, runTestSuite, runSpecificTest } from '@/utils/api'
+import { getTestSuites, runAllTests, runTestSuite, runSpecificTest, diagnoseEsp32Connection } from '@/utils/api'
 
 interface TestSuite {
   id: string
@@ -37,6 +37,8 @@ export default function SettingsPage() {
   const [selectedSuite, setSelectedSuite] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [esp32Bypass, setEsp32Bypass] = useState<boolean>(false)
+  const [diagnosticResults, setDiagnosticResults] = useState<any>(null)
+  const [runningDiagnostic, setRunningDiagnostic] = useState(false)
 
   // Load ESP32 bypass setting from localStorage on mount
   useEffect(() => {
@@ -102,18 +104,32 @@ export default function SettingsPage() {
   }
 
   const handleRunSpecificTest = async (testName: string, suiteId: string) => {
-    const testKey = `${suiteId}:${testName}`
-    setRunningTest(testKey)
+    setRunningTest(`${suiteId}-${testName}`)
     setError(null)
     
     try {
       const result = await runSpecificTest(testName, suiteId)
-      setTestResults(prev => ({ ...prev, [testKey]: result }))
+      setTestResults(prev => ({ ...prev, [`${suiteId}-${testName}`]: result }))
     } catch (error) {
       console.error('Error running specific test:', error)
       setError('Failed to run test')
     } finally {
       setRunningTest(null)
+    }
+  }
+
+  const handleRunEsp32Diagnostic = async () => {
+    setRunningDiagnostic(true)
+    setError(null)
+    
+    try {
+      const result = await diagnoseEsp32Connection()
+      setDiagnosticResults(result)
+    } catch (error) {
+      console.error('Error running ESP32 diagnostic:', error)
+      setError('Failed to run ESP32 diagnostic')
+    } finally {
+      setRunningDiagnostic(false)
     }
   }
 
@@ -457,6 +473,149 @@ export default function SettingsPage() {
                   </div>
                 </div>
               ))}
+            </div>
+          )}
+        </div>
+
+        {/* ESP32 Diagnostics Section */}
+        <div className="card p-6 mb-8">
+          <h2 className="text-xl font-semibold text-gray-900 mb-4">ESP32 Diagnostics</h2>
+          <p className="text-gray-600 mb-4">
+            Comprehensive ESP32 connectivity testing to help debug connection issues.
+          </p>
+          
+          <div className="flex items-center gap-4 mb-4">
+            <button
+              onClick={handleRunEsp32Diagnostic}
+              disabled={runningDiagnostic}
+              className="btn btn-primary"
+            >
+              {runningDiagnostic ? (
+                <>
+                  <Loader className="h-4 w-4 mr-2 animate-spin" />
+                  Running Diagnostic...
+                </>
+              ) : (
+                <>
+                  <Play className="h-4 w-4 mr-2" />
+                  Run ESP32 Diagnostic
+                </>
+              )}
+            </button>
+          </div>
+
+          {diagnosticResults && (
+            <div className="bg-gray-50 rounded-lg p-4">
+              <div className="flex items-center mb-3">
+                {diagnosticResults.summary.overall === 'online' ? (
+                  <CheckCircle className="h-5 w-5 text-green-500 mr-2" />
+                ) : (
+                  <XCircle className="h-5 w-5 text-red-500 mr-2" />
+                )}
+                <h3 className="font-semibold">
+                  Overall Status: {diagnosticResults.summary.overall.toUpperCase()}
+                </h3>
+              </div>
+              
+              {diagnosticResults.summary.issues.length > 0 && (
+                <div className="mb-4">
+                  <h4 className="font-medium text-red-700 mb-2">Issues Found:</h4>
+                  <ul className="list-disc list-inside text-sm text-red-600">
+                    {diagnosticResults.summary.issues.map((issue: string, index: number) => (
+                      <li key={index}>{issue}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Test Endpoint */}
+                <div className="bg-white rounded p-3">
+                  <h4 className="font-medium mb-2 flex items-center">
+                    {diagnosticResults.testEndpoint?.ok ? (
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-1" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-red-500 mr-1" />
+                    )}
+                    Test Endpoint
+                  </h4>
+                  <p className="text-sm text-gray-600">
+                    Status: {diagnosticResults.testEndpoint?.status || 'Error'}
+                  </p>
+                  {diagnosticResults.testEndpoint?.data?.success && (
+                    <p className="text-sm text-green-600">
+                      Last Poll: {Math.round(diagnosticResults.testEndpoint.data.timeSinceLastPoll / 1000)}s ago
+                    </p>
+                  )}
+                </div>
+
+                {/* Status Endpoint */}
+                <div className="bg-white rounded p-3">
+                  <h4 className="font-medium mb-2 flex items-center">
+                    {diagnosticResults.statusEndpoint?.ok ? (
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-1" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-red-500 mr-1" />
+                    )}
+                    Status Endpoint
+                  </h4>
+                  <p className="text-sm text-gray-600">
+                    Status: {diagnosticResults.statusEndpoint?.status || 'Error'}
+                  </p>
+                  {diagnosticResults.statusEndpoint?.data?.status?.system && (
+                    <p className="text-sm">
+                      System: {diagnosticResults.statusEndpoint.data.status.system}
+                    </p>
+                  )}
+                </div>
+
+                {/* Queue Endpoint */}
+                <div className="bg-white rounded p-3">
+                  <h4 className="font-medium mb-2 flex items-center">
+                    {diagnosticResults.queueEndpoint?.ok ? (
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-1" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-red-500 mr-1" />
+                    )}
+                    Queue Status
+                  </h4>
+                  <p className="text-sm text-gray-600">
+                    Status: {diagnosticResults.queueEndpoint?.status || 'Error'}
+                  </p>
+                  {diagnosticResults.queueEndpoint?.data && (
+                    <>
+                      <p className="text-sm">
+                        ESP32 Online: {diagnosticResults.queueEndpoint.data.esp32Online ? 'Yes' : 'No'}
+                      </p>
+                      <p className="text-sm">
+                        Pending Commands: {diagnosticResults.queueEndpoint.data.pendingCommands || 0}
+                      </p>
+                    </>
+                  )}
+                </div>
+
+                {/* Poll Endpoint */}
+                <div className="bg-white rounded p-3">
+                  <h4 className="font-medium mb-2 flex items-center">
+                    {diagnosticResults.pollEndpoint?.ok ? (
+                      <CheckCircle className="h-4 w-4 text-green-500 mr-1" />
+                    ) : (
+                      <XCircle className="h-4 w-4 text-red-500 mr-1" />
+                    )}
+                    Poll Endpoint
+                  </h4>
+                  <p className="text-sm text-gray-600">
+                    Status: {diagnosticResults.pollEndpoint?.status || 'Error'}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    (This is what the ESP32 uses)
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-4 text-xs text-gray-500">
+                Diagnostic run at: {new Date(diagnosticResults.timestamp).toLocaleString()}
+              </div>
             </div>
           )}
         </div>
