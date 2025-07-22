@@ -1,6 +1,7 @@
 import { Router, Request, Response } from 'express';
 import { logger } from '../utils/logger';
 import { db } from '../config/database';
+import axios from 'axios';
 
 const router = Router();
 
@@ -22,7 +23,11 @@ const COMMAND_COOLDOWN = 2000; // 2 seconds between commands for same relay
 
 // ESP32 polling tracking
 let lastEsp32PollTime = 0;
-const ESP32_POLL_TIMEOUT = 12000; // Consider ESP32 offline if no poll for 12 seconds (4 missed 3s polls)
+const ESP32_POLL_TIMEOUT = 25000; // Consider ESP32 offline if no poll for 25 seconds (2.5 missed 10s polls)
+
+// ESP32 direct communication configuration
+const ESP32_DIRECT_TIMEOUT = 2000; // 2 second timeout for direct calls
+let lastKnownEsp32IP: string | null = null;
 
 // Simple cache for status endpoint to reduce database calls
 interface StatusCache {
@@ -36,6 +41,74 @@ const STATUS_CACHE_TTL = 5000; // Cache status for 5 seconds
 function isEsp32Online(): boolean {
   const timeSinceLastPoll = Date.now() - lastEsp32PollTime;
   return timeSinceLastPoll < ESP32_POLL_TIMEOUT;
+}
+
+// Helper function to attempt direct ESP32 communication
+async function tryDirectEsp32Call(relayId: number, commandId: string, source: string): Promise<boolean> {
+  if (!lastKnownEsp32IP) {
+    logger.debug('No known ESP32 IP for direct call');
+    return false;
+  }
+
+  try {
+    const directUrl = `http://${lastKnownEsp32IP}/trigger`;
+    
+    logger.info(`Attempting direct ESP32 call to ${directUrl} for relay ${relayId}`);
+    
+    const response = await axios.post(directUrl, 
+      { relay: relayId },
+      { 
+        timeout: ESP32_DIRECT_TIMEOUT,
+        headers: { 'Content-Type': 'application/json' }
+      }
+    );
+
+    if (response.status === 200 && response.data.success) {
+      logger.info(`✅ Direct ESP32 call successful for relay ${relayId}`);
+      
+      // Simulate completion notification since direct call bypasses polling
+      setTimeout(() => {
+        logger.info(`📢 Simulated completion for direct call: Relay ${relayId} SUCCESS`);
+      }, 600); // 500ms relay duration + small buffer
+      
+      return true;
+    }
+  } catch (error) {
+    logger.warn(`Direct ESP32 call failed: ${(error as Error).message}`);
+  }
+  
+  return false;
+}
+
+// Helper function to extract ESP32 IP from polling requests
+function updateEsp32IP(req: any) {
+  // Try to get IP from X-Forwarded-For, X-Real-IP, or connection
+  const forwardedIps = req.headers['x-forwarded-for'];
+  const realIp = req.headers['x-real-ip'];
+  const connectionIp = req.connection?.remoteAddress || req.socket?.remoteAddress;
+  
+  let clientIp = null;
+  
+  if (forwardedIps) {
+    clientIp = forwardedIps.split(',')[0].trim();
+  } else if (realIp) {
+    clientIp = realIp;
+  } else if (connectionIp) {
+    clientIp = connectionIp;
+  }
+  
+  // Clean up IPv6 mapped IPv4 addresses
+  if (clientIp && clientIp.startsWith('::ffff:')) {
+    clientIp = clientIp.substring(7);
+  }
+  
+  // Only update if we got a valid private IP (ESP32 should be on local network)
+  if (clientIp && (clientIp.startsWith('192.168.') || clientIp.startsWith('10.') || clientIp.startsWith('172.'))) {
+    if (lastKnownEsp32IP !== clientIp) {
+      logger.info(`ESP32 IP updated: ${lastKnownEsp32IP} → ${clientIp}`);
+      lastKnownEsp32IP = clientIp;
+    }
+  }
 }
 
 // Helper function to add command to queue with spam protection
@@ -175,7 +248,7 @@ router.post('/rfid', async (req: Request, res: Response) => {
   }
 });
 
-// Trigger relay endpoint (modified to queue commands with spam protection)
+// Trigger relay endpoint (modified to try direct ESP32 call first for manual triggers)
 router.post('/:relayId', async (req: Request, res: Response) => {
   try {
     const { relayId } = req.params;
@@ -188,9 +261,43 @@ router.post('/:relayId', async (req: Request, res: Response) => {
       });
     }
 
-    logger.info(`Attempting to queue command for relay ${relayNumber}`);
+    logger.info(`Attempting to trigger relay ${relayNumber}`);
 
-    // Queue the command for ESP32 polling with spam protection
+    // Check spam protection first
+    const now = Date.now();
+    const lastCommandTime = lastCommandTimes[relayNumber] || 0;
+    const timeSinceLastCommand = now - lastCommandTime;
+    
+    if (timeSinceLastCommand < COMMAND_COOLDOWN) {
+      logger.warn(`Command for relay ${relayNumber} blocked - cooldown active (${COMMAND_COOLDOWN - timeSinceLastCommand}ms remaining)`);
+      return res.status(429).json({ 
+        error: `Please wait ${Math.ceil((COMMAND_COOLDOWN - timeSinceLastCommand) / 1000)} seconds before triggering relay ${relayNumber} again`,
+        relayId: relayNumber
+      });
+    }
+
+    const commandId = `cmd_${commandIdCounter++}`;
+    
+    // Try direct ESP32 call first for immediate response (manual triggers only)
+    const directCallSuccess = await tryDirectEsp32Call(relayNumber, commandId, 'manual');
+    
+    if (directCallSuccess) {
+      // Update spam protection for successful direct call
+      lastCommandTimes[relayNumber] = now;
+      
+      return res.json({ 
+        success: true, 
+        message: `Relay ${relayNumber} triggered directly`,
+        method: 'direct',
+        relayId: relayNumber,
+        commandId: commandId,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    // Fallback to polling system if direct call failed
+    logger.info(`Direct call failed, falling back to polling system for relay ${relayNumber}`);
+    
     const result = queueCommand(relayNumber, 'manual', 2);
     
     if (!result.success) {
@@ -202,16 +309,17 @@ router.post('/:relayId', async (req: Request, res: Response) => {
 
     return res.json({ 
       success: true, 
-      message: `Relay ${relayNumber} command queued`,
+      message: `Relay ${relayNumber} command queued (polling fallback)`,
+      method: 'polling',
       relayId: relayNumber,
       commandId: result.command!.id,
       timestamp: new Date().toISOString()
     });
 
   } catch (error) {
-    logger.error('Error queueing relay command:', error);
+    logger.error('Error triggering relay:', error);
     return res.status(500).json({ 
-      error: 'Failed to queue relay command',
+      error: 'Failed to trigger relay',
       details: process.env.NODE_ENV === 'development' ? (error as Error).message : undefined
     });
   }
@@ -220,8 +328,9 @@ router.post('/:relayId', async (req: Request, res: Response) => {
 // NEW: ESP32 polling endpoint to check for pending commands
 router.get('/poll', async (req: Request, res: Response) => {
   try {
-    // Track ESP32 polling activity
+    // Track ESP32 polling activity and IP
     lastEsp32PollTime = Date.now();
+    updateEsp32IP(req);
     
     const command = getNextCommand();
     
@@ -483,6 +592,9 @@ router.get('/queue', async (req: Request, res: Response) => {
       esp32Online: isEsp32Online(),
       lastPollTime: lastEsp32PollTime,
       timeSinceLastPoll: timeSinceLastPoll,
+      lastKnownIP: lastKnownEsp32IP,
+      directCallsEnabled: !!lastKnownEsp32IP,
+      pollingInterval: '10 seconds',
       pendingCommands: pendingCommands.length,
       commands: pendingCommands.map(cmd => ({
         id: cmd.id,
