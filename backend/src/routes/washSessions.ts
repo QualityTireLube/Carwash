@@ -1,14 +1,62 @@
 import { Router, Request, Response } from 'express';
 import { body, validationResult } from 'express-validator';
-import axios from 'axios';
 import { db } from '../config/database';
 import { logger } from '../utils/logger';
 
 const router = Router();
 
-// ESP32 configuration
-const ESP32_BASE_URL = process.env.ESP32_BASE_URL || 'http://192.168.1.100';
-const ESP32_TIMEOUT = parseInt(process.env.ESP32_TIMEOUT || '5000');
+// Pending commands queue for ESP32 polling (shared with relay routes)
+interface PendingCommand {
+  id: string;
+  relayId: number;
+  timestamp: number;
+  source: 'manual' | 'session' | 'rfid' | 'reset';
+  priority: number;
+}
+
+let pendingCommands: PendingCommand[] = [];
+let commandIdCounter = 1;
+
+// Spam protection - track last command times per relay
+const lastCommandTimes: { [relayId: number]: number } = {};
+const COMMAND_COOLDOWN = 2000; // 2 seconds between commands for same relay
+
+// Helper function to add command to queue with spam protection
+function queueCommand(relayId: number, source: 'manual' | 'session' | 'rfid' | 'reset' = 'manual', priority: number = 1): { success: boolean; command?: PendingCommand; error?: string } {
+  // Spam protection - check cooldown period for this relay
+  const now = Date.now();
+  const lastCommandTime = lastCommandTimes[relayId] || 0;
+  const timeSinceLastCommand = now - lastCommandTime;
+  
+  if (timeSinceLastCommand < COMMAND_COOLDOWN && source !== 'reset') {
+    logger.warn(`Command for relay ${relayId} blocked - cooldown active (${COMMAND_COOLDOWN - timeSinceLastCommand}ms remaining)`);
+    return {
+      success: false,
+      error: `Please wait ${Math.ceil((COMMAND_COOLDOWN - timeSinceLastCommand) / 1000)} seconds before triggering relay ${relayId} again`
+    };
+  }
+  
+  const command: PendingCommand = {
+    id: `cmd_${commandIdCounter++}`,
+    relayId,
+    timestamp: now,
+    source,
+    priority
+  };
+  
+  // Remove any existing commands for the same relay (prevent duplicates)
+  pendingCommands = pendingCommands.filter(cmd => cmd.relayId !== relayId);
+  
+  // Add new command and sort by priority (higher priority first)
+  pendingCommands.push(command);
+  pendingCommands.sort((a, b) => b.priority - a.priority);
+  
+  // Update last command time for spam protection
+  lastCommandTimes[relayId] = now;
+  
+  logger.info(`Queued command for relay ${relayId}:`, command);
+  return { success: true, command };
+}
 
 // Validation middleware for starting wash
 const validateStartWash = [
@@ -64,31 +112,25 @@ router.post('/start', validateStartWash, async (req: Request, res: Response) => 
 
     const washSession = sessionResult.rows[0];
 
-    // Trigger the relay on ESP32
+    // Queue the relay command for ESP32 polling system
     let relayTriggered = false;
     let relayError = null;
 
     try {
-      logger.info(`Triggering relay ${washType.relayId} for wash session ${washSession.id}`);
+      logger.info(`Queueing relay ${washType.relayId} command for wash session ${washSession.id}`);
       
-      const response = await axios.post(
-        `${ESP32_BASE_URL}/trigger`,
-        { relay: washType.relayId },
-        { 
-          timeout: ESP32_TIMEOUT,
-          headers: { 'Content-Type': 'application/json' }
-        }
-      );
-
-      if (response.status === 200) {
+      // Use the new polling-based queue system
+      const result = queueCommand(washType.relayId, 'session', 1); // Low priority for session commands
+      
+      if (result.success) {
         relayTriggered = true;
-        logger.info(`Relay ${washType.relayId} triggered successfully for session ${washSession.id}`);
+        logger.info(`Relay ${washType.relayId} command queued successfully for session ${washSession.id}, commandId: ${result.command!.id}`);
       } else {
-        throw new Error(`ESP32 returned status ${response.status}`);
+        throw new Error(result.error || 'Failed to queue relay command');
       }
     } catch (error) {
       relayError = error;
-      logger.error('Failed to trigger relay:', error);
+      logger.error('Failed to queue relay command:', error);
       
       // Update session status to error
       await db.query(
