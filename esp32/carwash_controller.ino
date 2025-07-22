@@ -33,7 +33,7 @@ bool isConfigMode = false;
 
 // Timing variables
 unsigned long lastPollTime = 0;
-const unsigned long POLL_INTERVAL = 3000; // Poll every 3 seconds (reduced for rate limiting)
+const unsigned long POLL_INTERVAL = 10000; // Poll every 10 seconds (reduced from 3s to lower request volume)
 
 // Relay states for status tracking
 bool relayStates[NUM_RELAYS] = {false, false, false, false, false, false};

@@ -68,13 +68,36 @@ const corsOptions = {
 
 app.use(cors(corsOptions));
 
-// Rate limiting
+// Rate limiting middleware to prevent excessive requests
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+  max: 500, // Limit each IP to 500 requests per windowMs (reduced from default)
+  message: {
+    error: 'Too many requests from this IP, please try again later',
+    retryAfter: '15 minutes'
+  },
+  standardHeaders: true,
+  legacyHeaders: false,
 });
+
+// Apply rate limiting to all routes
 app.use(limiter);
+
+// More restrictive rate limiting for ESP32 polling endpoint
+const esp32Limiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 20, // Allow 20 requests per minute (for 10s polling interval)
+  message: {
+    error: 'ESP32 polling rate limit exceeded',
+    retryAfter: '1 minute'
+  },
+  skip: (req) => {
+    // Only apply to the polling endpoint
+    return !req.path.includes('/api/trigger/poll');
+  }
+});
+
+app.use('/api/trigger', esp32Limiter);
 
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));

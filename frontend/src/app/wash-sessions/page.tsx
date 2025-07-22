@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Activity, Plus, Clock, User, Car, CheckCircle, XCircle, AlertCircle, Eye } from 'lucide-react'
 import Link from 'next/link'
 import { getWashSessions, getActiveWashSessions, completeWashSession, cancelWashSession } from '@/utils/api'
@@ -37,11 +37,38 @@ export default function WashSessionsPage() {
   const [filter, setFilter] = useState<'all' | 'active' | 'completed' | 'cancelled' | 'error'>('all')
   const [actionLoading, setActionLoading] = useState<string | null>(null)
 
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+
   useEffect(() => {
     fetchData()
+    
+    // Only poll when page is visible
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Clear interval when page is hidden
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current)
+          intervalRef.current = null
+        }
+      } else {
+        // Resume polling when page becomes visible
+        fetchActiveSessions()
+        intervalRef.current = setInterval(fetchActiveSessions, 30000) // Increased from 15s to 30s
+      }
+    }
+    
     // Set up polling for active sessions
-    const interval = setInterval(fetchActiveSessions, 15000) // Update every 15 seconds (reduced for rate limiting)
-    return () => clearInterval(interval)
+    intervalRef.current = setInterval(fetchActiveSessions, 30000) // Increased from 15s to 30s
+    
+    // Listen for visibility changes
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [])
 
   useEffect(() => {

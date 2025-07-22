@@ -152,6 +152,29 @@ NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
 - Relays 1-4: ON → 500ms delay → OFF
 - Relay 5: Reset functionality
 
+## 📊 Request Optimization
+
+To prevent hitting Render's request limits, the following optimizations have been implemented:
+
+### Frontend Optimizations
+- **Smart Polling**: Frontend only polls when pages are visible (using Page Visibility API)
+- **Increased Intervals**: Polling intervals increased from 15s to 30s
+- **Reduced Retries**: API retry attempts reduced from 2 to 1 with longer delays
+
+### Backend Optimizations  
+- **ESP32 Polling**: Reduced from 3s to 10s interval (~360 requests/hour vs 1,200)
+- **Response Caching**: Status endpoints cached for 5 seconds to reduce database load
+- **Database Pool**: Optimized connection pool (10 max connections, 60s idle timeout)
+- **Rate Limiting**: Added rate limiting (500 requests/15min general, 20/min for ESP32)
+
+### Expected Request Volume
+- ESP32 polling: ~360 requests/hour
+- Frontend polling (single user): ~240 requests/hour  
+- Total estimated: ~600-800 requests/hour (well within most hosting limits)
+
+### Monitoring
+Monitor request volume in your hosting dashboard and adjust polling intervals if needed.
+
 ## 📝 License
 
 MIT License - see LICENSE file for detail(s) 

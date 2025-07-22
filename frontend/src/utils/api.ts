@@ -10,7 +10,7 @@ async function handleResponse(response: Response) {
 }
 
 // Helper function to make API requests with retry logic
-async function apiRequest(url: string, options: RequestInit = {}, retries = 2): Promise<any> {
+async function apiRequest(url: string, options: RequestInit = {}, retries = 1): Promise<any> {
   // Check if we're in production and don't have a proper API URL
   if (typeof window !== 'undefined' && process.env.NODE_ENV === 'production' && !process.env.NEXT_PUBLIC_API_URL) {
     console.warn('No API URL configured in production. Please set NEXT_PUBLIC_API_URL environment variable.');
@@ -29,7 +29,7 @@ async function apiRequest(url: string, options: RequestInit = {}, retries = 2): 
   } catch (error) {
     if (retries > 0) {
       console.warn(`API request failed, retrying... (${retries} retries left)`);
-      await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1 second before retry
+      await new Promise(resolve => setTimeout(resolve, 2000)); // Increased from 1s to 2s to reduce request rate
       return apiRequest(url, options, retries - 1);
     }
     throw error;

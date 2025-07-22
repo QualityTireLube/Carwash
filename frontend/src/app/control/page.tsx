@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { Zap, RotateCcw, CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react'
 import Link from 'next/link'
 
@@ -51,10 +51,38 @@ export default function ControlPanel() {
     }
   }, [])
 
+  const intervalRef = useRef<NodeJS.Timeout | null>(null)
+
   useEffect(() => {
     fetchSystemStatus()
-    const interval = setInterval(fetchSystemStatus, 15000) // Update every 15 seconds (reduced for rate limiting)
-    return () => clearInterval(interval)
+    
+    // Only poll when page is visible
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Clear interval when page is hidden
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current)
+          intervalRef.current = null
+        }
+      } else {
+        // Resume polling when page becomes visible
+        fetchSystemStatus()
+        intervalRef.current = setInterval(fetchSystemStatus, 30000) // Increased from 15s to 30s
+      }
+    }
+    
+    // Set up initial polling
+    intervalRef.current = setInterval(fetchSystemStatus, 30000) // Increased from 15s to 30s
+    
+    // Listen for visibility changes
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current)
+      }
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
   }, [])
 
   // Update cooldown timers every second

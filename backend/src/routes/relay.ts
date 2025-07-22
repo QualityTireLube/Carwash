@@ -22,7 +22,15 @@ const COMMAND_COOLDOWN = 2000; // 2 seconds between commands for same relay
 
 // ESP32 polling tracking
 let lastEsp32PollTime = 0;
-const ESP32_POLL_TIMEOUT = 20000; // Consider ESP32 offline if no poll for 20 seconds (increased for 3s polling)
+const ESP32_POLL_TIMEOUT = 30000; // Consider ESP32 offline if no poll for 30 seconds (increased for 10s polling)
+
+// Simple cache for status endpoint to reduce database calls
+interface StatusCache {
+  timestamp: number;
+  data: any;
+}
+let statusCache: StatusCache | null = null;
+const STATUS_CACHE_TTL = 5000; // Cache status for 5 seconds
 
 // Helper function to check if ESP32 is online based on polling activity
 function isEsp32Online(): boolean {
@@ -359,26 +367,39 @@ router.post('/reset-options', async (req: Request, res: Response) => {
   }
 });
 
-// Get relay status - now based on ESP32 polling activity
+// Get relay status - now based on ESP32 polling activity with caching
 router.get('/status', async (req: Request, res: Response) => {
   try {
     const now = Date.now();
+    
+    // Check if we have cached data that's still valid
+    if (statusCache && (now - statusCache.timestamp) < STATUS_CACHE_TTL) {
+      return res.json(statusCache.data);
+    }
+    
     const timeSinceLastPoll = now - lastEsp32PollTime;
     const online = isEsp32Online();
 
+    const responseData = {
+      success: true,
+      status: {
+        system: online ? 'online' : 'offline',
+        lastPollTime: lastEsp32PollTime,
+        timeSinceLastPoll: timeSinceLastPoll,
+        pollingActive: online
+      },
+      timestamp: new Date().toISOString()
+    };
+
     if (online) {
-      return res.json({
-        success: true,
-        status: {
-          system: 'online',
-          lastPollTime: lastEsp32PollTime,
-          timeSinceLastPoll: timeSinceLastPoll,
-          pollingActive: true
-        },
-        timestamp: new Date().toISOString()
-      });
+      // Cache successful responses
+      statusCache = {
+        timestamp: now,
+        data: responseData
+      };
+      return res.json(responseData);
     } else {
-      return res.status(503).json({ 
+      const offlineData = {
         error: 'ESP32 not reachable',
         message: 'ESP32 is offline or not connected to the network',
         status: {
@@ -388,7 +409,10 @@ router.get('/status', async (req: Request, res: Response) => {
           pollingActive: false
         },
         timestamp: new Date().toISOString()
-      });
+      };
+      
+      // Don't cache offline responses as aggressively
+      return res.status(503).json(offlineData);
     }
 
   } catch (error) {
@@ -400,30 +424,42 @@ router.get('/status', async (req: Request, res: Response) => {
   }
 });
 
-// Test ESP32 connection - now based on polling activity
+// Test ESP32 connection - now based on polling activity with caching
 router.get('/test', async (req: Request, res: Response) => {
   try {
     const now = Date.now();
+    
+    // Check if we have cached data that's still valid (use same cache as status)
+    if (statusCache && (now - statusCache.timestamp) < STATUS_CACHE_TTL) {
+      const cachedOnline = statusCache.data.status?.system === 'online';
+      const testResponse = {
+        success: cachedOnline,
+        message: cachedOnline ? 'ESP32 connection successful' : 'ESP32 not reachable',
+        pollingModel: true,
+        lastPollTime: lastEsp32PollTime,
+        timeSinceLastPoll: now - lastEsp32PollTime,
+        cached: true
+      };
+      
+      return cachedOnline ? res.json(testResponse) : res.status(503).json(testResponse);
+    }
+    
     const timeSinceLastPoll = now - lastEsp32PollTime;
     const online = isEsp32Online();
 
+    const testResponse = {
+      success: online,
+      message: online ? 'ESP32 connection successful' : 'ESP32 not reachable',
+      pollingModel: true,
+      lastPollTime: lastEsp32PollTime,
+      timeSinceLastPoll: timeSinceLastPoll,
+      cached: false
+    };
+
     if (online) {
-      return res.json({
-        success: true,
-        message: 'ESP32 connection successful',
-        pollingModel: true,
-        lastPollTime: lastEsp32PollTime,
-        timeSinceLastPoll: timeSinceLastPoll
-      });
+      return res.json(testResponse);
     } else {
-      return res.status(503).json({
-        success: false,
-        error: 'ESP32 not reachable',
-        message: 'ESP32 is offline or not connected to the network',
-        pollingModel: true,
-        lastPollTime: lastEsp32PollTime,
-        timeSinceLastPoll: timeSinceLastPoll
-      });
+      return res.status(503).json(testResponse);
     }
 
   } catch (error) {
