@@ -34,7 +34,7 @@ async function runMigrationsManual() {
     await db.query(`
       CREATE TABLE IF NOT EXISTS wash_types (
           id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-          name VARCHAR(255) NOT NULL UNIQUE,
+          name VARCHAR(255) NOT NULL,
           description TEXT,
           duration INTEGER NOT NULL CHECK (duration > 0),
           price DECIMAL(10,2) NOT NULL CHECK (price >= 0),
@@ -45,6 +45,19 @@ async function runMigrationsManual() {
       )
     `);
     logger.info('✓ Wash types table created');
+
+    // Add UNIQUE constraint to name column if it doesn't exist
+    logger.info('Adding UNIQUE constraint to wash_types.name...');
+    try {
+      await db.query('ALTER TABLE wash_types ADD CONSTRAINT wash_types_name_unique UNIQUE (name)');
+      logger.info('✓ UNIQUE constraint added to wash_types.name');
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('already exists')) {
+        logger.info('✓ UNIQUE constraint already exists on wash_types.name');
+      } else {
+        logger.info('Note: Could not add UNIQUE constraint, continuing without it');
+      }
+    }
 
     // Create wash_sessions table
     await db.query(`
@@ -72,15 +85,49 @@ async function runMigrationsManual() {
     logger.info('✓ Indexes created');
 
     // Insert default wash types
-    await db.query(`
-      INSERT INTO wash_types (name, description, duration, price, relay_id) VALUES
-          ('Ultimate Wash', 'Complete wash with all services and detailing', 300, 24.99, 1),
-          ('Premium Wash', 'Basic wash plus tire cleaning and wax', 180, 9.99, 2),
-          ('Express Wash', 'Soap, rinse, and basic dry', 150, 7.99, 3),
-          ('Basic Wash', 'Exterior wash with soap and rinse', 120, 5.99, 4)
-      ON CONFLICT (name) DO NOTHING
-    `);
-    logger.info('✓ Default wash types inserted');
+    logger.info('Inserting/updating default wash types...');
+    const washTypes = [
+      { name: 'Ultimate Wash', description: 'Complete wash with all services and detailing', duration: 300, price: 24.99, relay_id: 1 },
+      { name: 'Premium Wash', description: 'Basic wash plus tire cleaning and wax', duration: 180, price: 9.99, relay_id: 2 },
+      { name: 'Express Wash', description: 'Soap, rinse, and basic dry', duration: 150, price: 7.99, relay_id: 3 },
+      { name: 'Basic Wash', description: 'Exterior wash with soap and rinse', duration: 120, price: 5.99, relay_id: 4 }
+    ];
+
+    for (const washType of washTypes) {
+      try {
+        // Try to insert, if name constraint exists it will be handled
+        await db.query(`
+          INSERT INTO wash_types (name, description, duration, price, relay_id) 
+          VALUES ($1, $2, $3, $4, $5)
+          ON CONFLICT (name) DO UPDATE SET
+            description = EXCLUDED.description,
+            duration = EXCLUDED.duration,
+            price = EXCLUDED.price,
+            relay_id = EXCLUDED.relay_id,
+            updated_at = NOW()
+        `, [washType.name, washType.description, washType.duration, washType.price, washType.relay_id]);
+        logger.info(`✓ Inserted/updated wash type: ${washType.name}`);
+      } catch (conflictError) {
+        // If no unique constraint, try a different approach
+        const existing = await db.query('SELECT id FROM wash_types WHERE name = $1', [washType.name]);
+        if (existing.rows.length === 0) {
+          // Insert new
+          await db.query(`
+            INSERT INTO wash_types (name, description, duration, price, relay_id) 
+            VALUES ($1, $2, $3, $4, $5)
+          `, [washType.name, washType.description, washType.duration, washType.price, washType.relay_id]);
+          logger.info(`✓ Inserted new wash type: ${washType.name}`);
+        } else {
+          // Update existing
+          await db.query(`
+            UPDATE wash_types 
+            SET description = $2, duration = $3, price = $4, relay_id = $5, updated_at = NOW()
+            WHERE name = $1
+          `, [washType.name, washType.description, washType.duration, washType.price, washType.relay_id]);
+          logger.info(`✓ Updated existing wash type: ${washType.name}`);
+        }
+      }
+    }
 
     logger.info('🎉 Manual database migrations completed successfully!');
     
